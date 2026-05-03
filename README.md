@@ -35,37 +35,37 @@ corepack pnpm dev
 
 ### 홈
 
-![홈 화면](readme-screens/home-delay.png)
+<img src="readme-screens/home-delay.png" alt="홈 화면" width="320" />
 
 홈 화면은 앱 진입점입니다. 사용자는 첫 화면에서 바로 피부 분석을 시작하거나 최근 분석 결과를 확인하고, 하단 탭으로 분석하기, AI 상담, 기록 화면으로 이동할 수 있습니다.
 
 ### 피부 촬영
 
-![피부 촬영 화면](readme-screens/capture.png)
+<img src="readme-screens/capture.png" alt="피부 촬영 화면" width="320" />
 
 피부 촬영 화면은 카메라 사용 흐름에 맞춘 전체 화면 UI입니다. 얼굴을 가이드 안에 맞추도록 안내하고, 밝은 조명, 정면 응시, 민낯 권장 조건을 함께 보여줍니다.
 
 ### 분석 진행
 
-![분석 진행 화면](readme-screens/loading.png)
+<img src="readme-screens/loading.png" alt="분석 진행 화면" width="320" />
 
 분석 진행 화면은 사용자가 기다리는 동안 현재 처리 단계를 확인할 수 있게 합니다. 피부 영역 감지, 피부 톤 분석, 모공 및 결 분석, 피부 고민 파악, 맞춤 솔루션 생성 순서로 진행됩니다.
 
 ### 분석 결과
 
-![분석 결과 화면](readme-screens/result-delay.png)
+<img src="readme-screens/result-delay.png" alt="분석 결과 화면" width="320" />
 
 분석 결과 화면은 최종 결과물입니다. 종합 피부 점수와 피부 타입을 먼저 보여주고, 주요 고민 태그와 상세 분석 카드를 통해 어떤 항목을 관리해야 하는지 확인할 수 있습니다.
 
 ### AI 피부 상담
 
-![AI 피부 상담 화면](readme-screens/chat.png)
+<img src="readme-screens/chat.png" alt="AI 피부 상담 화면" width="320" />
 
 AI 피부 상담 화면은 분석 결과를 바탕으로 추가 질문을 하는 공간입니다. 추천 질문을 선택하거나 직접 입력하면 피부 상태 설명, 우선 관리 항목, 오늘부터 할 수 있는 관리법 등을 답변합니다.
 
 ### 분석 기록
 
-![분석 기록 화면](readme-screens/history.png)
+<img src="readme-screens/history.png" alt="분석 기록 화면" width="320" />
 
 분석 기록 화면은 시간에 따른 피부 점수 변화를 보여주는 결과물입니다. 최근 점수, 지난 분석 대비 변화량, 최근 5회 그래프, 날짜별 상세 기록을 한 화면에서 확인할 수 있습니다.
 

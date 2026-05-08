@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Camera, Clock, Home, MessageCircle } from "lucide-vue-next"
+import { Camera, Home, MapPin, MessageCircle } from "lucide-vue-next"
 import { useRoute } from "vue-router"
 
 const route = useRoute()
@@ -7,7 +7,7 @@ const navItems = [
   { href: "/", label: "홈", icon: Home },
   { href: "/capture", label: "추천받기", icon: Camera },
   { href: "/chat", label: "시술상담", icon: MessageCircle },
-  { href: "/history", label: "기록", icon: Clock },
+  { href: "/hospitals", label: "병원찾기", icon: MapPin },
 ]
 </script>
 

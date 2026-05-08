@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowRight, CalendarCheck, Camera, ChevronRight, ClipboardList, MessageCircle, Shield, Sparkles, TrendingUp } from "lucide-vue-next"
+import { ArrowRight, CalendarCheck, Camera, ChevronRight, ClipboardList, MapPin, MessageCircle, Shield, Sparkles, TrendingUp } from "lucide-vue-next"
 import AppHeader from "@/components/AppHeader.vue"
 import BaseButton from "@/components/BaseButton.vue"
 import BottomNav from "@/components/BottomNav.vue"
@@ -78,7 +78,7 @@ const lastAnalysisDate = "2026.04.30"
         <FeatureCard href="/capture" :icon="Camera" title="피부 촬영" description="추천에 필요한 상태를 확인해요" />
         <FeatureCard href="/result" :icon="ClipboardList" icon-color="text-success" icon-bg="bg-success/10" title="시술 추천" description="고민별 우선순위를 제안해요" />
         <FeatureCard href="/chat" :icon="MessageCircle" icon-color="text-warning" icon-bg="bg-warning/10" title="시술 상담" description="효과와 주의사항을 물어보세요" />
-        <FeatureCard href="/history" :icon="CalendarCheck" icon-color="text-muted-foreground" icon-bg="bg-muted" title="상담 기록" description="지난 추천을 다시 확인해요" />
+        <FeatureCard href="/hospitals" :icon="MapPin" icon-color="text-muted-foreground" icon-bg="bg-muted" title="병원 찾기" description="결과지를 제출하고 상담해요" />
       </div>
     </section>
 

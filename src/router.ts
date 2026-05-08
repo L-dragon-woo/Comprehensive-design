@@ -5,6 +5,7 @@ import LoadingView from "@/views/LoadingView.vue"
 import ResultView from "@/views/ResultView.vue"
 import ChatView from "@/views/ChatView.vue"
 import HistoryView from "@/views/HistoryView.vue"
+import HospitalView from "@/views/HospitalView.vue"
 
 const router = createRouter({
   history: createWebHistory(),
@@ -14,6 +15,7 @@ const router = createRouter({
     { path: "/loading", component: LoadingView },
     { path: "/result", component: ResultView },
     { path: "/chat", component: ChatView },
+    { path: "/hospitals", component: HospitalView },
     { path: "/history", component: HistoryView },
   ],
   scrollBehavior() {

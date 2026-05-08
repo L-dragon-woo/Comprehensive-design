@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CircleDot, Download, Droplets, Home, MessageCircle, Share2, Sparkles, Stethoscope, Sun } from "lucide-vue-next"
+import { CircleDot, Download, Droplets, Home, MapPin, MessageCircle, Share2, Sparkles, Stethoscope, Sun } from "lucide-vue-next"
 import AnalysisCard from "@/components/AnalysisCard.vue"
 import AppHeader from "@/components/AppHeader.vue"
 import BaseButton from "@/components/BaseButton.vue"
@@ -107,8 +107,14 @@ const skinAnalysisData = {
     </section>
 
     <section class="space-y-3 py-6">
-      <RouterLink to="/chat" class="block">
+      <RouterLink to="/hospitals" class="block">
         <BaseButton size="lg" class="h-14 w-full rounded-2xl text-base font-semibold shadow-lg shadow-primary/20">
+          <MapPin class="h-5 w-5" />
+          근처 병원에 결과지 제출하기
+        </BaseButton>
+      </RouterLink>
+      <RouterLink to="/chat" class="block">
+        <BaseButton variant="outline" size="lg" class="h-14 w-full rounded-2xl text-base font-semibold">
           <MessageCircle class="h-5 w-5" />
           추천 시술 상담하기
         </BaseButton>

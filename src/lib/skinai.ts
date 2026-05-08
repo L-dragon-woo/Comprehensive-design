@@ -14,6 +14,47 @@ export interface AnalysisRecord {
   improvements: string[]
 }
 
+export interface HospitalApplication {
+  id: string
+  hospitalName: string
+  submittedAt: string
+  status: "submitted" | "reviewing" | "confirmed"
+  includedItems: string[]
+}
+
+const applicationStorageKey = "skinai:hospital-applications"
+
+export function getHospitalApplications(): HospitalApplication[] {
+  if (typeof window === "undefined") return []
+
+  try {
+    const stored = window.localStorage.getItem(applicationStorageKey)
+    if (!stored) return []
+    const parsed = JSON.parse(stored)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+export function saveHospitalApplication(application: HospitalApplication) {
+  const applications = [application, ...getHospitalApplications()]
+  window.localStorage.setItem(applicationStorageKey, JSON.stringify(applications))
+  window.dispatchEvent(new CustomEvent("skinai:hospital-application-updated"))
+}
+
+export function formatApplicationDate(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return "방금 전"
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date)
+}
+
 export function scoreColor(score: number) {
   if (score >= 80) return "text-success"
   if (score >= 60) return "text-primary"

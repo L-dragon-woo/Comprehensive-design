@@ -1,15 +1,40 @@
 <script setup lang="ts">
-import { ArrowRight, CalendarCheck, Camera, ChevronRight, ClipboardList, MapPin, MessageCircle, Shield, Sparkles, TrendingUp } from "lucide-vue-next"
+import { ArrowRight, CalendarCheck, Camera, ChevronRight, ClipboardList, FileCheck2, MapPin, MessageCircle, Shield, Sparkles, TrendingUp } from "lucide-vue-next"
+import { computed, onMounted, onUnmounted, ref } from "vue"
 import AppHeader from "@/components/AppHeader.vue"
 import BaseButton from "@/components/BaseButton.vue"
 import BottomNav from "@/components/BottomNav.vue"
 import FeatureCard from "@/components/FeatureCard.vue"
 import PageContainer from "@/components/PageContainer.vue"
 import ScoreRing from "@/components/ScoreRing.vue"
+import { formatApplicationDate, getHospitalApplications, type HospitalApplication } from "@/lib/skinai"
 
 const hasRecentAnalysis = true
 const recentScore = 78
 const lastAnalysisDate = "2026.04.30"
+const applications = ref<HospitalApplication[]>([])
+const latestApplication = computed(() => applications.value[0])
+
+function refreshApplications() {
+  applications.value = getHospitalApplications()
+}
+
+function applicationStatusLabel(status: HospitalApplication["status"]) {
+  if (status === "reviewing") return "검토 중"
+  if (status === "confirmed") return "예약 확정"
+  return "제출 완료"
+}
+
+onMounted(() => {
+  refreshApplications()
+  window.addEventListener("skinai:hospital-application-updated", refreshApplications)
+  window.addEventListener("storage", refreshApplications)
+})
+
+onUnmounted(() => {
+  window.removeEventListener("skinai:hospital-application-updated", refreshApplications)
+  window.removeEventListener("storage", refreshApplications)
+})
 </script>
 
 <template>
@@ -70,6 +95,46 @@ const lastAnalysisDate = "2026.04.30"
           </div>
         </div>
       </RouterLink>
+    </section>
+
+    <section v-if="latestApplication" class="py-6">
+      <div class="mb-4 flex items-center justify-between">
+        <h2 class="text-lg font-semibold text-foreground">병원 신청 현황</h2>
+        <RouterLink to="/hospitals" class="flex items-center gap-1 text-sm font-medium text-primary hover:underline">
+          병원찾기
+          <ChevronRight class="h-4 w-4" />
+        </RouterLink>
+      </div>
+
+      <div class="rounded-2xl border border-primary/20 bg-card p-5 shadow-sm">
+        <div class="mb-4 flex items-start justify-between gap-3">
+          <div class="flex items-start gap-3">
+            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+              <FileCheck2 class="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p class="text-base font-semibold text-foreground">{{ latestApplication.hospitalName }}</p>
+              <p class="mt-1 text-sm text-muted-foreground">{{ formatApplicationDate(latestApplication.submittedAt) }} 제출</p>
+            </div>
+          </div>
+          <span class="shrink-0 rounded-full bg-success/10 px-3 py-1 text-xs font-semibold text-success">
+            {{ applicationStatusLabel(latestApplication.status) }}
+          </span>
+        </div>
+
+        <div class="mb-4 flex flex-wrap gap-1.5">
+          <span v-for="item in latestApplication.includedItems" :key="item" class="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
+            {{ item }}
+          </span>
+        </div>
+
+        <RouterLink to="/hospitals" class="block">
+          <BaseButton variant="outline" size="lg" class="h-12 w-full rounded-xl">
+            <MapPin class="h-4 w-4" />
+            신청 현황 확인하기
+          </BaseButton>
+        </RouterLink>
+      </div>
     </section>
 
     <section class="py-6">

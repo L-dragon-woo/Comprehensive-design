@@ -5,6 +5,7 @@ import AppHeader from "@/components/AppHeader.vue"
 import BaseButton from "@/components/BaseButton.vue"
 import BottomNav from "@/components/BottomNav.vue"
 import PageContainer from "@/components/PageContainer.vue"
+import { saveHospitalApplication } from "@/lib/skinai"
 
 type Hospital = {
   id: string
@@ -75,6 +76,17 @@ const selectedHospital = computed(() => {
 
 function submitReport() {
   submittedHospitalName.value = selectedHospital.value.name
+  saveHospitalApplication({
+    id: Date.now().toString(),
+    hospitalName: selectedHospital.value.name,
+    submittedAt: new Date().toISOString(),
+    status: "submitted",
+    includedItems: [
+      ...(includeTreatments.value ? ["추천 시술 목록"] : []),
+      ...(includeScore.value ? ["피부 점수와 지표"] : []),
+      ...(includePhoto.value ? ["촬영 이미지"] : []),
+    ],
+  })
 }
 </script>
 

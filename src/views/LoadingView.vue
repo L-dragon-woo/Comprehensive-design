@@ -10,8 +10,8 @@ const analysisSteps = [
   { id: 1, label: "피부 영역 감지 중...", duration: 1500 },
   { id: 2, label: "피부 톤 분석 중...", duration: 1200 },
   { id: 3, label: "모공 및 결 분석 중...", duration: 1300 },
-  { id: 4, label: "피부 고민 파악 중...", duration: 1000 },
-  { id: 5, label: "맞춤 솔루션 생성 중...", duration: 800 },
+  { id: 4, label: "시술 상담 포인트 정리 중...", duration: 1000 },
+  { id: 5, label: "맞춤 시술 추천 생성 중...", duration: 800 },
 ]
 const progress = computed(() => (completedSteps.value.length / analysisSteps.length) * 100)
 
@@ -47,8 +47,8 @@ onMounted(() => {
         </svg>
       </div>
 
-      <h1 class="mb-2 text-center text-xl font-bold text-foreground">AI가 피부를 분석하고 있어요</h1>
-      <p class="mb-10 text-center text-sm text-muted-foreground">잠시만 기다려주세요</p>
+      <h1 class="mb-2 text-center text-xl font-bold text-foreground">AI가 추천 시술을 정리하고 있어요</h1>
+      <p class="mb-10 text-center text-sm text-muted-foreground">피부 지표와 상담 포인트를 함께 확인하는 중이에요</p>
 
       <div class="mb-8 w-full">
         <div class="h-2 overflow-hidden rounded-full bg-muted">

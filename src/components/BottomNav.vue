@@ -5,8 +5,8 @@ import { useRoute } from "vue-router"
 const route = useRoute()
 const navItems = [
   { href: "/", label: "홈", icon: Home },
-  { href: "/capture", label: "분석하기", icon: Camera },
-  { href: "/chat", label: "AI 상담", icon: MessageCircle },
+  { href: "/capture", label: "추천받기", icon: Camera },
+  { href: "/chat", label: "시술상담", icon: MessageCircle },
   { href: "/history", label: "기록", icon: Clock },
 ]
 </script>

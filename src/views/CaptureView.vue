@@ -12,7 +12,7 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const captureGuides = [
   { icon: Zap, text: "밝은 조명" },
   { icon: Check, text: "정면 응시" },
-  { icon: Check, text: "민낯 권장" },
+  { icon: Check, text: "시술 부위 노출" },
 ]
 
 function handleCapture() {
@@ -41,7 +41,7 @@ function handleFileSelect(event: Event) {
         <X class="h-6 w-6" />
         <span class="sr-only">닫기</span>
       </BaseButton>
-      <h1 class="text-base font-semibold text-primary-foreground">피부 촬영</h1>
+      <h1 class="text-base font-semibold text-primary-foreground">시술 추천 촬영</h1>
       <div class="w-10" />
     </div>
 
@@ -62,7 +62,7 @@ function handleFileSelect(event: Event) {
         <div v-if="isCapturing" class="absolute inset-0 flex items-center justify-center rounded-3xl bg-primary-foreground/20 backdrop-blur-sm">
           <div class="h-16 w-16 animate-spin rounded-full border-4 border-primary border-t-transparent" />
         </div>
-        <p class="absolute bottom-6 left-0 right-0 text-center text-sm text-primary-foreground/60">얼굴을 가이드 안에 맞춰주세요</p>
+        <p class="absolute bottom-6 left-0 right-0 text-center text-sm text-primary-foreground/60">상담받고 싶은 부위가 잘 보이게 맞춰주세요</p>
       </div>
     </div>
 
@@ -80,7 +80,7 @@ function handleFileSelect(event: Event) {
           다시 촬영
         </BaseButton>
         <BaseButton size="lg" class="h-14 flex-1 rounded-2xl text-base font-semibold shadow-lg shadow-primary/30" @click="router.push('/loading')">
-          분석하기
+          시술 추천 받기
         </BaseButton>
       </div>
 

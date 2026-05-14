@@ -136,7 +136,7 @@ corepack pnpm preview  # 빌드 결과 미리보기
 
 ### 홈
 
-<img src="readme-screens/home-delay.png" alt="홈 화면" width="320" />
+<img src="readme-screens/home.png" alt="홈 화면" width="320" />
 
 홈 화면은 시술 추천 시작점입니다. 최근 추천 리포트와 주요 기능 카드가 표시되며, 병원 결과지를 제출한 뒤에는 병원 신청 현황도 함께 표시됩니다.
 
@@ -154,7 +154,7 @@ corepack pnpm preview  # 빌드 결과 미리보기
 
 ### 시술 추천 결과
 
-<img src="readme-screens/result-delay.png" alt="시술 추천 결과 화면" width="320" />
+<img src="readme-screens/result.png" alt="시술 추천 결과 화면" width="320" />
 
 결과 화면에서는 추천 적합도와 피부 지표, 추천 시술, 상담 전 체크리스트를 확인할 수 있습니다.
 
@@ -163,6 +163,12 @@ corepack pnpm preview  # 빌드 결과 미리보기
 <img src="readme-screens/chat.png" alt="AI 시술 상담 화면" width="320" />
 
 상담 화면에서는 추천 질문 또는 직접 입력을 통해 시술 목적, 우선순위, 주의사항을 확인할 수 있습니다.
+
+### 근처 병원 찾기
+
+<img src="readme-screens/hospitals.png" alt="근처 병원 찾기 화면" width="320" />
+
+병원 찾기 화면에서는 추천 시술과 매칭되는 병원을 검색하고, 선택한 병원에 분석 결과지를 제출할 수 있습니다.
 
 ### 분석 기록
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CheckCircle2, FileText, Send } from "lucide-vue-next"
+import { MapPin, Send } from "lucide-vue-next"
 import { computed, nextTick, ref } from "vue"
 import AnalysisSummaryCard from "@/components/AnalysisSummaryCard.vue"
 import AppHeader from "@/components/AppHeader.vue"
@@ -8,7 +8,7 @@ import BottomNav from "@/components/BottomNav.vue"
 import ChatBubble from "@/components/ChatBubble.vue"
 import ChatTypingIndicator from "@/components/ChatTypingIndicator.vue"
 import PageContainer from "@/components/PageContainer.vue"
-import { saveHospitalApplication, type ChatMessage } from "@/lib/skinai"
+import type { ChatMessage } from "@/lib/skinai"
 
 const suggestedQuestions = [
   "나에게 추천된 시술을 쉽게 설명해줘",
@@ -29,9 +29,6 @@ const input = ref("")
 const isLoading = ref(false)
 const showSuggestions = ref(true)
 const messagesEnd = ref<HTMLElement | null>(null)
-const selectedHospitalName = ref("서울스킨 피부과의원")
-const submittedHospitalName = ref("")
-const hospitalOptions = ["서울스킨 피부과의원", "메디톤 클리닉", "더맑은 피부의원"]
 const hasUserConsultation = computed(() => messages.value.some((message) => message.role === "user"))
 
 function getAIResponse(question: string) {
@@ -71,17 +68,6 @@ function handleSend(messageText?: string) {
   }, 1500)
 }
 
-function submitConsultation() {
-  submittedHospitalName.value = selectedHospitalName.value
-  saveHospitalApplication({
-    id: Date.now().toString(),
-    hospitalName: selectedHospitalName.value,
-    submittedAt: new Date().toISOString(),
-    status: "submitted",
-    includedItems: ["AI 시술 상담 내용", "추천 시술 목록", "피부 점수와 지표"],
-  })
-}
-
 function handleKeydown(event: KeyboardEvent) {
   if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault()
@@ -118,34 +104,12 @@ function handleKeydown(event: KeyboardEvent) {
       </div>
 
       <div class="border-t border-border bg-card px-5 py-4">
-        <div v-if="hasUserConsultation" class="mb-4 rounded-2xl border border-border bg-secondary p-4">
-          <div class="mb-3 flex items-start gap-3">
-            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-card">
-              <FileText class="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h3 class="text-sm font-semibold text-foreground">상담 내용 제출</h3>
-              <p class="text-xs leading-relaxed text-muted-foreground">AI 상담 요약과 추천 시술 정보를 병원에 전달해요.</p>
-            </div>
-          </div>
-
-          <div class="mb-3 flex gap-2">
-            <select
-              v-model="selectedHospitalName"
-              class="h-11 min-w-0 flex-1 rounded-xl bg-card px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
-            >
-              <option v-for="hospital in hospitalOptions" :key="hospital" :value="hospital">{{ hospital }}</option>
-            </select>
-            <BaseButton size="sm" class="h-11 rounded-xl px-4" @click="submitConsultation">
-              제출
-            </BaseButton>
-          </div>
-
-          <div v-if="submittedHospitalName" class="flex items-start gap-2 rounded-xl bg-success/10 px-3 py-2">
-            <CheckCircle2 class="mt-0.5 h-4 w-4 shrink-0 text-success" />
-            <p class="text-xs font-medium leading-relaxed text-foreground">{{ submittedHospitalName }}에 상담 내용을 제출했어요.</p>
-          </div>
-        </div>
+        <RouterLink v-if="hasUserConsultation" to="/hospitals" class="mb-4 block">
+          <BaseButton size="lg" class="h-12 w-full rounded-xl">
+            <MapPin class="h-4 w-4" />
+            병원찾기에서 결과 제출하기
+          </BaseButton>
+        </RouterLink>
 
         <div class="flex items-center gap-3">
           <input

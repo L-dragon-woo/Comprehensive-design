@@ -1,8 +1,16 @@
+export interface ChatReference {
+  title: string
+  source: string
+  url: string
+  summary: string
+}
+
 export interface ChatMessage {
   id: string
   role: "user" | "assistant"
   content: string
   timestamp: Date
+  references?: ChatReference[]
 }
 
 export interface AnalysisRecord {

@@ -26,6 +26,23 @@ out/
 !**/src/main/**/out/
 !**/src/test/**/out/
 
+### Local secrets ###
+.env
+.env.*
+!.env.example
+!.env.*.example
+src/main/resources/application-local.properties
+src/main/resources/application-local.yml
+src/main/resources/application-*.local.properties
+src/main/resources/application-*.local.yml
+docker-compose.override.yml
+*.secret
+*.secrets
+*.key
+*.pem
+*.p12
+*.jks
+
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/

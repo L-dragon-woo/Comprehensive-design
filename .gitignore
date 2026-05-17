@@ -8,7 +8,24 @@ __v0_jsx-dev-runtime.ts
 next.user-config.*
 
 # Environment variables
+.env
+.env.*
 .env*.local
+!.env.example
+!.env.*.example
+
+# Local secret/config overrides
+application-local.properties
+application-local.yml
+application-*.local.properties
+application-*.local.yml
+docker-compose.override.yml
+*.secret
+*.secrets
+*.key
+*.pem
+*.p12
+*.jks
 
 # Common ignores
 node_modules

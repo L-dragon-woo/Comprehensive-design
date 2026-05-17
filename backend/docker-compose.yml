@@ -5,10 +5,10 @@ services:
     ports:
       - "3307:3306"
     environment:
-      MARIADB_DATABASE: skinai
-      MARIADB_USER: skinai
-      MARIADB_PASSWORD: skinai_password
-      MARIADB_ROOT_PASSWORD: root_password
+      MARIADB_DATABASE: ${MARIADB_DATABASE:-skinai}
+      MARIADB_USER: ${MARIADB_USER:-skinai}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:?Set MARIADB_PASSWORD in backend/.env}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?Set MARIADB_ROOT_PASSWORD in backend/.env}
     volumes:
       - mariadb_data:/var/lib/mysql
       - ./docker/mariadb/init:/docker-entrypoint-initdb.d:ro

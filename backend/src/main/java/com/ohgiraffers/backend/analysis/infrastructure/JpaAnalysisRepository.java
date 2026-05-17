@@ -8,40 +8,37 @@ import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Repository
-public class InMemoryAnalysisRepository implements AnalysisRepository {
+public class JpaAnalysisRepository implements AnalysisRepository {
 
-    // 분석 결과는 AI/DB 연동 전까지 메모리에 보관합니다.
-    private final Map<String, Analysis> analyses = new ConcurrentHashMap<>();
+    private final AnalysisJpaRepository analysisJpaRepository;
 
-    public InMemoryAnalysisRepository() {
-        // 프론트 결과/기록 화면을 바로 확인할 수 있도록 기본 분석 결과 1건을 준비합니다.
-        Analysis seed = createMockAnalysis("analysis_001", Instant.parse("2026-04-30T09:00:00Z"), "/placeholder.jpg");
-        analyses.put(seed.id(), seed);
+    public JpaAnalysisRepository(AnalysisJpaRepository analysisJpaRepository) {
+        this.analysisJpaRepository = analysisJpaRepository;
     }
 
+    @Override
     public Analysis save(Analysis analysis) {
-        analyses.put(analysis.id(), analysis);
-        return analysis;
+        return analysisJpaRepository.save(AnalysisJpaEntity.fromDomain(analysis)).toDomain();
     }
 
+    @Override
     public List<Analysis> findAllLatestFirst() {
-        return new ArrayList<>(analyses.values()).stream()
-                .sorted(Comparator.comparing(Analysis::createdAt).reversed())
+        return analysisJpaRepository.findAllByOrderByCreatedAtDesc().stream()
+                .map(AnalysisJpaEntity::toDomain)
                 .toList();
     }
 
+    @Override
     public Optional<Analysis> findById(String id) {
-        return Optional.ofNullable(analyses.get(id));
+        return analysisJpaRepository.findById(id)
+                .map(AnalysisJpaEntity::toDomain);
     }
 
+    @Override
     public Analysis createMockAnalysis(String id, Instant createdAt, String imageUrl) {
         // AI 서버가 준비되기 전까지 결과 화면과 같은 구조의 고정 mock 데이터를 제공합니다.
         return new Analysis(

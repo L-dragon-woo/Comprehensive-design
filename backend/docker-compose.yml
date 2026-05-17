@@ -1,0 +1,21 @@
+services:
+  mariadb:
+    image: mariadb:11
+    container_name: skinai-mariadb
+    ports:
+      - "3306:3306"
+    environment:
+      MARIADB_DATABASE: skinai
+      MARIADB_USER: skinai
+      MARIADB_PASSWORD: skinai_password
+      MARIADB_ROOT_PASSWORD: root_password
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mariadb_data:

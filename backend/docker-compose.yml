@@ -10,8 +10,8 @@ services:
       MARIADB_PASSWORD: ${MARIADB_PASSWORD:?Set MARIADB_PASSWORD in backend/.env}
       MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?Set MARIADB_ROOT_PASSWORD in backend/.env}
     volumes:
+      # MariaDB data files live in this named volume, so data survives container stop/remove.
       - mariadb_data:/var/lib/mysql
-      - ./docker/mariadb/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
@@ -19,4 +19,5 @@ services:
       retries: 5
 
 volumes:
+  # Keep this volume unless you intentionally want to reset the local database.
   mariadb_data:

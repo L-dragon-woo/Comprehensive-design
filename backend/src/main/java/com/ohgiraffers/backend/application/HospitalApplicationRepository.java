@@ -12,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Repository
 public class HospitalApplicationRepository {
 
+    // 임시 저장소입니다. 실제 DB가 붙기 전까지 서버 프로세스가 살아있는 동안만 데이터가 유지됩니다.
     private final Map<String, HospitalApplication> applications = new ConcurrentHashMap<>();
 
     public HospitalApplication save(HospitalApplication application) {

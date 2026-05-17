@@ -24,6 +24,7 @@ public class AnalysisController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize
     ) {
+        // 기록 화면에서 기간 필터와 페이지 정보를 넘겨 분석 목록을 조회합니다.
         return analysisService.findAnalyses(period, page, pageSize);
     }
 
@@ -33,16 +34,19 @@ public class AnalysisController {
             @RequestParam(required = false) String targetArea,
             @RequestParam(required = false) String memo
     ) {
+        // AI 서버가 준비되기 전까지 업로드 요청만 받고 mock 분석 작업을 생성합니다.
         return analysisService.createAnalysis(image, targetArea, memo);
     }
 
     @GetMapping("/{analysisId}")
     public AnalysisDetailResponse getAnalysis(@PathVariable String analysisId) {
+        // 결과 화면과 기록 상세 화면에서 같은 분석 상세 응답을 사용합니다.
         return analysisService.getAnalysis(analysisId);
     }
 
     @GetMapping("/{analysisId}/status")
     public AnalysisStatusResponse getStatus(@PathVariable String analysisId) {
+        // 로딩 화면에서 진행률과 단계별 상태를 폴링할 때 사용합니다.
         return analysisService.getStatus(analysisId);
     }
 }

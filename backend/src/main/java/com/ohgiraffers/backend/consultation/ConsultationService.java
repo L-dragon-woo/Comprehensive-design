@@ -10,6 +10,7 @@ import java.util.UUID;
 public class ConsultationService {
 
     public ConsultationMessageResponse reply(ConsultationMessageRequest request) {
+        // AI 서버 호출 전에도 프론트 채팅 플로우를 검증할 수 있게 최소 입력만 검증합니다.
         if (request == null || !StringUtils.hasText(request.message())) {
             throw new InvalidConsultationMessageException("message is required");
         }

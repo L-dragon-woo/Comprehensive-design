@@ -19,10 +19,12 @@ public class HospitalService {
     }
 
     public HospitalListResponse findHospitals(String query, Double lat, Double lng, String treatments, String sort) {
+        // 위치가 없으면 프론트 mock 기준 위치인 강남역 근처 좌표로 거리를 계산합니다.
         double baseLat = lat == null ? DEFAULT_LATITUDE : lat;
         double baseLng = lng == null ? DEFAULT_LONGITUDE : lng;
         List<String> requestedTreatments = splitCsv(treatments);
 
+        // 검색어 필터링 후 시술 매칭, 거리 계산, 정렬까지 목록 API 응답 형태로 조립합니다.
         List<HospitalSummaryResponse> items = hospitalRepository.findAll().stream()
                 .filter(hospital -> matchesQuery(hospital, query))
                 .map(hospital -> toSummary(hospital, baseLat, baseLng, requestedTreatments))
@@ -50,6 +52,7 @@ public class HospitalService {
     }
 
     public Hospital requireHospital(String hospitalId) {
+        // 다른 도메인에서 병원 존재 여부를 검증할 때 재사용하는 내부 조회 메서드입니다.
         return hospitalRepository.findById(hospitalId)
                 .orElseThrow(() -> new HospitalNotFoundException(hospitalId));
     }
@@ -88,6 +91,7 @@ public class HospitalService {
     }
 
     private Comparator<HospitalSummaryResponse> resolveSort(String sort) {
+        // sort 값이 rating일 때만 평점순이고, 기본값은 사용자 위치 기준 거리순입니다.
         if ("rating".equalsIgnoreCase(sort)) {
             return Comparator.comparingDouble(HospitalSummaryResponse::rating).reversed();
         }

@@ -22,6 +22,7 @@ public class HospitalApplicationService {
 
     public HospitalApplicationResponse submit(HospitalApplicationRequest request) {
         validateSubmitRequest(request);
+        // 존재하는 병원에만 제출할 수 있게 병원 도메인의 조회 로직을 재사용합니다.
         Hospital hospital = hospitalService.requireHospital(request.hospitalId());
 
         HospitalApplication application = new HospitalApplication(
@@ -40,6 +41,7 @@ public class HospitalApplicationService {
     public HospitalApplicationListResponse findApplications(boolean latest) {
         List<HospitalApplication> applications = applicationRepository.findAllLatestFirst();
         if (latest && !applications.isEmpty()) {
+            // latest=true는 홈 화면 카드용으로 가장 최근 제출 1건만 반환합니다.
             applications = applications.subList(0, 1);
         }
 
@@ -52,6 +54,7 @@ public class HospitalApplicationService {
     public HospitalApplicationDetailResponse getApplication(String applicationId) {
         HospitalApplication application = applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new HospitalApplicationNotFoundException(applicationId));
+        // 신청 저장 시점 이후 병원 상세 정보가 바뀔 수 있으므로 상세 조회 시 병원 정보를 다시 읽습니다.
         Hospital hospital = hospitalService.requireHospital(application.hospitalId());
 
         return new HospitalApplicationDetailResponse(

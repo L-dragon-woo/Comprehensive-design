@@ -8,6 +8,7 @@ import java.util.Optional;
 @Repository
 public class HospitalRepository {
 
+    // DB 연결 전까지 프론트 개발과 API 계약 검증에 사용할 병원 seed 데이터입니다.
     private final List<Hospital> hospitals = List.of(
             new Hospital(
                     "hospital_001",

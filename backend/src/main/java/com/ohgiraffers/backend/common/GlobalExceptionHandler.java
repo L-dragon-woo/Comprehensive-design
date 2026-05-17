@@ -16,6 +16,7 @@ import java.time.Instant;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    // 도메인별 예외를 HTTP 상태 코드와 공통 에러 응답 형태로 변환합니다.
     @ExceptionHandler(HospitalNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ApiErrorResponse handleNotFound(RuntimeException exception) {

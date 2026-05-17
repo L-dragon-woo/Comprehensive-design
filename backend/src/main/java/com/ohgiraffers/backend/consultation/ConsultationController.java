@@ -17,6 +17,7 @@ public class ConsultationController {
 
     @PostMapping
     public ConsultationMessageResponse reply(@RequestBody ConsultationMessageRequest request) {
+        // 채팅 화면에서 사용자 메시지를 보내면 임시 상담 답변을 생성합니다.
         return consultationService.reply(request);
     }
 }

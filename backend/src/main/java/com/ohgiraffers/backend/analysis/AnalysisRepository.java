@@ -14,9 +14,11 @@ import java.util.concurrent.ConcurrentHashMap;
 @Repository
 public class AnalysisRepository {
 
+    // 분석 결과는 AI/DB 연동 전까지 메모리에 보관합니다.
     private final Map<String, Analysis> analyses = new ConcurrentHashMap<>();
 
     public AnalysisRepository() {
+        // 프론트 결과/기록 화면을 바로 확인할 수 있도록 기본 분석 결과 1건을 준비합니다.
         Analysis seed = createMockAnalysis("analysis_001", Instant.parse("2026-04-30T09:00:00Z"), "/placeholder.jpg");
         analyses.put(seed.id(), seed);
     }

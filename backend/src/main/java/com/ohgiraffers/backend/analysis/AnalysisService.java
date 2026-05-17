@@ -19,6 +19,7 @@ public class AnalysisService {
     }
 
     public AnalysisListResponse findAnalyses(String period, int page, int pageSize) {
+        // mock 데이터라도 실제 목록 API와 동일하게 기간 필터와 페이지네이션을 적용합니다.
         List<AnalysisListItemResponse> allItems = analysisRepository.findAllLatestFirst().stream()
                 .filter(analysis -> matchesPeriod(analysis, period))
                 .map(this::toListItem)
@@ -38,6 +39,7 @@ public class AnalysisService {
     public AnalysisStatusResponse getStatus(String analysisId) {
         Analysis analysis = analysisRepository.findById(analysisId)
                 .orElseThrow(() -> new AnalysisNotFoundException(analysisId));
+        // AI 작업 큐가 없으므로 생성 시각부터 지난 시간으로 진행률을 흉내 냅니다.
         int progress = calculateProgress(analysis.createdAt());
         AnalysisStatus status = progress >= 100 ? AnalysisStatus.completed : AnalysisStatus.processing;
         String currentStep = resolveCurrentStep(progress);
@@ -58,6 +60,7 @@ public class AnalysisService {
 
         String id = "analysis_" + UUID.randomUUID().toString().substring(0, 8);
         Instant createdAt = Instant.now();
+        // 지금은 이미지 파일을 디스크에 저장하지 않고, 추후 파일 저장 API로 교체할 URL만 계약 형태로 남깁니다.
         String imageUrl = "/api/analyses/" + id + "/image";
         analysisRepository.save(analysisRepository.createMockAnalysis(id, createdAt, imageUrl));
 
@@ -133,6 +136,7 @@ public class AnalysisService {
     }
 
     private String stepStatus(int progress, int completedAt) {
+        // 각 단계의 완료 기준값과 현재 진행률 차이로 pending/processing/completed를 결정합니다.
         if (progress >= completedAt) {
             return "completed";
         }

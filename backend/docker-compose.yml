@@ -3,7 +3,7 @@ services:
     image: mariadb:11
     container_name: skinai-mariadb
     ports:
-      - "3306:3306"
+      - "3307:3306"
     environment:
       MARIADB_DATABASE: skinai
       MARIADB_USER: skinai
@@ -11,6 +11,7 @@ services:
       MARIADB_ROOT_PASSWORD: root_password
     volumes:
       - mariadb_data:/var/lib/mysql
+      - ./docker/mariadb/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s

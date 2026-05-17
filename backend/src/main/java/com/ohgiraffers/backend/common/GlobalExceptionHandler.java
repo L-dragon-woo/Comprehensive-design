@@ -1,5 +1,7 @@
 package com.ohgiraffers.backend.common;
 
+import com.ohgiraffers.backend.analysis.AnalysisNotFoundException;
+import com.ohgiraffers.backend.analysis.InvalidAnalysisRequestException;
 import com.ohgiraffers.backend.application.HospitalApplicationNotFoundException;
 import com.ohgiraffers.backend.application.InvalidHospitalApplicationException;
 import com.ohgiraffers.backend.hospital.HospitalNotFoundException;
@@ -25,7 +27,13 @@ public class GlobalExceptionHandler {
         return new ApiErrorResponse(exception.getMessage(), Instant.now());
     }
 
-    @ExceptionHandler(InvalidHospitalApplicationException.class)
+    @ExceptionHandler(AnalysisNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ApiErrorResponse handleAnalysisNotFound(RuntimeException exception) {
+        return new ApiErrorResponse(exception.getMessage(), Instant.now());
+    }
+
+    @ExceptionHandler({InvalidHospitalApplicationException.class, InvalidAnalysisRequestException.class})
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ApiErrorResponse handleBadRequest(RuntimeException exception) {
         return new ApiErrorResponse(exception.getMessage(), Instant.now());

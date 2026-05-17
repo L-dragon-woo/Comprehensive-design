@@ -1,11 +1,11 @@
 package com.ohgiraffers.backend.common;
 
-import com.ohgiraffers.backend.analysis.AnalysisNotFoundException;
-import com.ohgiraffers.backend.analysis.InvalidAnalysisRequestException;
-import com.ohgiraffers.backend.application.HospitalApplicationNotFoundException;
-import com.ohgiraffers.backend.application.InvalidHospitalApplicationException;
-import com.ohgiraffers.backend.consultation.InvalidConsultationMessageException;
-import com.ohgiraffers.backend.hospital.HospitalNotFoundException;
+import com.ohgiraffers.backend.analysis.domain.exception.AnalysisNotFoundException;
+import com.ohgiraffers.backend.analysis.domain.exception.InvalidAnalysisRequestException;
+import com.ohgiraffers.backend.application.domain.exception.HospitalApplicationNotFoundException;
+import com.ohgiraffers.backend.application.domain.exception.InvalidHospitalApplicationException;
+import com.ohgiraffers.backend.consultation.domain.exception.InvalidConsultationMessageException;
+import com.ohgiraffers.backend.hospital.domain.exception.HospitalNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;

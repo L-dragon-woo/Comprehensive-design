@@ -1,5 +1,7 @@
 package com.ohgiraffers.backend.common;
 
+import com.ohgiraffers.backend.application.HospitalApplicationNotFoundException;
+import com.ohgiraffers.backend.application.InvalidHospitalApplicationException;
 import com.ohgiraffers.backend.hospital.HospitalNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -14,6 +16,18 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HospitalNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ApiErrorResponse handleNotFound(RuntimeException exception) {
+        return new ApiErrorResponse(exception.getMessage(), Instant.now());
+    }
+
+    @ExceptionHandler(HospitalApplicationNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ApiErrorResponse handleApplicationNotFound(RuntimeException exception) {
+        return new ApiErrorResponse(exception.getMessage(), Instant.now());
+    }
+
+    @ExceptionHandler(InvalidHospitalApplicationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiErrorResponse handleBadRequest(RuntimeException exception) {
         return new ApiErrorResponse(exception.getMessage(), Instant.now());
     }
 }

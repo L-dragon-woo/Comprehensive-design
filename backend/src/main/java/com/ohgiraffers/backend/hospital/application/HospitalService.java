@@ -3,10 +3,13 @@ package com.ohgiraffers.backend.hospital.application;
 import com.ohgiraffers.backend.hospital.domain.exception.HospitalNotFoundException;
 import com.ohgiraffers.backend.hospital.domain.model.Hospital;
 import com.ohgiraffers.backend.hospital.domain.model.TreatmentInfo;
+import com.ohgiraffers.backend.hospital.domain.repository.HospitalPlaceSearchClient;
 import com.ohgiraffers.backend.hospital.domain.repository.HospitalRepository;
 import com.ohgiraffers.backend.hospital.presentation.dto.HospitalDetailResponse;
 import com.ohgiraffers.backend.hospital.presentation.dto.HospitalListResponse;
 import com.ohgiraffers.backend.hospital.presentation.dto.HospitalSummaryResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -16,13 +19,16 @@ import java.util.List;
 @Service
 public class HospitalService {
 
+    private static final Logger log = LoggerFactory.getLogger(HospitalService.class);
     private static final double DEFAULT_LATITUDE = 37.4979;
     private static final double DEFAULT_LONGITUDE = 127.0276;
 
     private final HospitalRepository hospitalRepository;
+    private final HospitalPlaceSearchClient hospitalPlaceSearchClient;
 
-    public HospitalService(HospitalRepository hospitalRepository) {
+    public HospitalService(HospitalRepository hospitalRepository, HospitalPlaceSearchClient hospitalPlaceSearchClient) {
         this.hospitalRepository = hospitalRepository;
+        this.hospitalPlaceSearchClient = hospitalPlaceSearchClient;
     }
 
     public HospitalListResponse findHospitals(String query, Double lat, Double lng, String treatments, String sort) {
@@ -30,9 +36,10 @@ public class HospitalService {
         double baseLat = lat == null ? DEFAULT_LATITUDE : lat;
         double baseLng = lng == null ? DEFAULT_LONGITUDE : lng;
         List<String> requestedTreatments = splitCsv(treatments);
+        List<Hospital> hospitals = findHospitalSources(query, lat, lng);
 
         // 검색어 필터링 후 시술 매칭, 거리 계산, 정렬까지 목록 API 응답 형태로 조립합니다.
-        List<HospitalSummaryResponse> items = hospitalRepository.findAll().stream()
+        List<HospitalSummaryResponse> items = hospitals.stream()
                 .filter(hospital -> matchesQuery(hospital, query))
                 .map(hospital -> toSummary(hospital, baseLat, baseLng, requestedTreatments))
                 .filter(summary -> requestedTreatments.isEmpty() || !summary.matchedTreatments().isEmpty())
@@ -40,6 +47,23 @@ public class HospitalService {
                 .toList();
 
         return new HospitalListResponse(items, items.size());
+    }
+
+    private List<Hospital> findHospitalSources(String query, Double lat, Double lng) {
+        if (lat == null || lng == null) {
+            return hospitalRepository.findAll();
+        }
+
+        try {
+            List<Hospital> nearbyHospitals = hospitalPlaceSearchClient.searchNearby(query, lat, lng);
+            if (!nearbyHospitals.isEmpty()) {
+                return nearbyHospitals;
+            }
+        } catch (RuntimeException exception) {
+            log.warn("Failed to search nearby hospitals from Kakao Local API.", exception);
+        }
+
+        return hospitalRepository.findAll();
     }
 
     public HospitalDetailResponse getHospital(String hospitalId) {

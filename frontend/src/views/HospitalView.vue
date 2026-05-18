@@ -1,80 +1,77 @@
 <script setup lang="ts">
-import { CheckCircle2, FileText, MapPin, Navigation, Phone, Search, Send, ShieldCheck, SlidersHorizontal, Star } from "lucide-vue-next"
-import { computed, ref } from "vue"
+import { CheckCircle2, FileText, LoaderCircle, LocateFixed, MapPin, Navigation, Phone, Search, Send, ShieldCheck, SlidersHorizontal, Star } from "lucide-vue-next"
+import { computed, onMounted, ref, watch } from "vue"
 import AppHeader from "@/components/AppHeader.vue"
 import BaseButton from "@/components/BaseButton.vue"
 import BottomNav from "@/components/BottomNav.vue"
 import PageContainer from "@/components/PageContainer.vue"
+import { fetchHospitals, getCurrentLocation, type Hospital, type UserLocation } from "@/lib/hospitals"
 import { saveHospitalApplication } from "@/lib/skinai"
 
-type Hospital = {
-  id: string
-  name: string
-  distance: string
-  rating: number
-  address: string
-  specialties: string[]
-  matchedTreatments: string[]
-  waitTime: string
-  phone: string
-}
-
-const hospitals: Hospital[] = [
-  {
-    id: "1",
-    name: "서울스킨 피부과의원",
-    distance: "0.8km",
-    rating: 4.8,
-    address: "서울 강남구 테헤란로 142",
-    specialties: ["리쥬란", "피코토닝", "스킨부스터"],
-    matchedTreatments: ["리쥬란 힐러", "피코토닝"],
-    waitTime: "오늘 상담 가능",
-    phone: "02-1234-5678",
-  },
-  {
-    id: "2",
-    name: "메디톤 클리닉",
-    distance: "1.4km",
-    rating: 4.6,
-    address: "서울 서초구 강남대로 311",
-    specialties: ["색소 레이저", "아쿠아필", "모공관리"],
-    matchedTreatments: ["피코토닝", "아쿠아필"],
-    waitTime: "내일 오전 가능",
-    phone: "02-2345-6789",
-  },
-  {
-    id: "3",
-    name: "더맑은 피부의원",
-    distance: "2.1km",
-    rating: 4.7,
-    address: "서울 강남구 도산대로 85",
-    specialties: ["피부결", "홍조", "보습관리"],
-    matchedTreatments: ["리쥬란 힐러"],
-    waitTime: "이번 주 상담 가능",
-    phone: "02-3456-7890",
-  },
-]
-
 const query = ref("")
-const selectedHospitalId = ref(hospitals[0].id)
+const hospitals = ref<Hospital[]>([])
+const selectedHospitalId = ref("")
+const userLocation = ref<UserLocation | null>(null)
+const isLoadingHospitals = ref(false)
+const isLocating = ref(false)
+const hospitalError = ref("")
 const includePhoto = ref(true)
 const includeScore = ref(true)
 const includeTreatments = ref(true)
 const submittedHospitalName = ref("")
+let searchTimer: number | undefined
 
 const filteredHospitals = computed(() => {
-  const keyword = query.value.trim()
-  if (!keyword) return hospitals
-  return hospitals.filter((hospital) => {
-    return [hospital.name, hospital.address, ...hospital.specialties, ...hospital.matchedTreatments].some((item) => item.includes(keyword))
-  })
+  return hospitals.value
 })
 
 const selectedHospital = computed(() => {
-  return hospitals.find((hospital) => hospital.id === selectedHospitalId.value) ?? hospitals[0]
+  return hospitals.value.find((hospital) => hospital.id === selectedHospitalId.value) ?? hospitals.value[0] ?? null
 })
 
+const locationLabel = computed(() => {
+  return userLocation.value ? "현재 위치 기준" : "기본 위치 기준"
+})
+
+async function loadHospitals() {
+  isLoadingHospitals.value = true
+  hospitalError.value = ""
+
+  try {
+    hospitals.value = await fetchHospitals({
+      query: query.value,
+      location: userLocation.value ?? undefined,
+    })
+
+    if (!hospitals.value.some((hospital) => hospital.id === selectedHospitalId.value)) {
+      selectedHospitalId.value = hospitals.value[0]?.id ?? ""
+    }
+  } catch (error) {
+    hospitalError.value = error instanceof Error ? error.message : "병원 목록을 불러오지 못했어요."
+    hospitals.value = []
+    selectedHospitalId.value = ""
+  } finally {
+    isLoadingHospitals.value = false
+  }
+}
+
+async function useCurrentLocation() {
+  isLocating.value = true
+  hospitalError.value = ""
+
+  try {
+    userLocation.value = await getCurrentLocation()
+    await loadHospitals()
+  } catch (error) {
+    hospitalError.value = error instanceof Error ? error.message : "현재 위치를 확인하지 못했어요."
+  } finally {
+    isLocating.value = false
+  }
+}
+
 function submitReport() {
+  if (!selectedHospital.value) return
+
   submittedHospitalName.value = selectedHospital.value.name
   saveHospitalApplication({
     id: Date.now().toString(),
@@ -88,6 +85,22 @@ function submitReport() {
     ],
   })
 }
+
+function callHospital() {
+  if (!selectedHospital.value || selectedHospital.value.phone === "전화번호 미제공") return
+  window.location.href = `tel:${selectedHospital.value.phone}`
+}
+
+watch(query, () => {
+  window.clearTimeout(searchTimer)
+  searchTimer = window.setTimeout(() => {
+    void loadHospitals()
+  }, 300)
+})
+
+onMounted(() => {
+  void useCurrentLocation()
+})
 </script>
 
 <template>
@@ -127,13 +140,23 @@ function submitReport() {
     <section class="pb-4">
       <div class="mb-3 flex items-center justify-between">
         <h3 class="text-lg font-semibold text-foreground">추천 병원</h3>
-        <button class="flex items-center gap-1 text-sm font-medium text-primary">
-          <Navigation class="h-4 w-4" />
-          현재 위치 기준
+        <button class="flex items-center gap-1 text-sm font-medium text-primary disabled:opacity-60" :disabled="isLocating" @click="useCurrentLocation">
+          <LoaderCircle v-if="isLocating" class="h-4 w-4 animate-spin" />
+          <LocateFixed v-else class="h-4 w-4" />
+          {{ locationLabel }}
         </button>
       </div>
 
-      <div class="space-y-3">
+      <div v-if="hospitalError" class="mb-3 rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        {{ hospitalError }}
+      </div>
+
+      <div v-if="isLoadingHospitals" class="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+        <LoaderCircle class="mx-auto mb-2 h-5 w-5 animate-spin text-primary" />
+        주변 병원을 불러오는 중이에요.
+      </div>
+
+      <div v-else class="space-y-3">
         <button
           v-for="hospital in filteredHospitals"
           :key="hospital.id"
@@ -152,14 +175,18 @@ function submitReport() {
           </div>
 
           <div class="mb-3 flex items-center gap-3 text-sm text-muted-foreground">
-            <span class="flex items-center gap-1">
+            <span v-if="hospital.rating > 0" class="flex items-center gap-1">
               <Star class="h-4 w-4 fill-warning text-warning" />
               {{ hospital.rating }}
+            </span>
+            <span v-else class="flex items-center gap-1">
+              <Navigation class="h-4 w-4" />
+              지도 검색
             </span>
             <span>{{ hospital.waitTime }}</span>
           </div>
 
-          <div class="mb-3 flex flex-wrap gap-1.5">
+          <div v-if="hospital.matchedTreatments.length > 0" class="mb-3 flex flex-wrap gap-1.5">
             <span v-for="treatment in hospital.matchedTreatments" :key="treatment" class="rounded-full bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
               {{ treatment }} 매칭
             </span>
@@ -173,12 +200,12 @@ function submitReport() {
         </button>
       </div>
 
-      <div v-if="filteredHospitals.length === 0" class="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+      <div v-if="!isLoadingHospitals && filteredHospitals.length === 0" class="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
         검색 결과가 없어요.
       </div>
     </section>
 
-    <section class="space-y-3 py-6">
+    <section v-if="selectedHospital" class="space-y-3 py-6">
       <div class="rounded-2xl border border-border bg-card p-5 shadow-sm">
         <div class="mb-4 flex items-start gap-3">
           <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-success/10">
@@ -215,7 +242,7 @@ function submitReport() {
         </div>
 
         <div class="flex gap-3">
-          <BaseButton variant="outline" size="lg" class="h-12 flex-1 rounded-xl">
+          <BaseButton variant="outline" size="lg" class="h-12 flex-1 rounded-xl" :disabled="selectedHospital.phone === '전화번호 미제공'" @click="callHospital">
             <Phone class="h-4 w-4" />
             전화
           </BaseButton>

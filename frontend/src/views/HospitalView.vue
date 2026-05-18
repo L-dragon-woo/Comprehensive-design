@@ -4,6 +4,7 @@ import { computed, onMounted, ref, watch } from "vue"
 import AppHeader from "@/components/AppHeader.vue"
 import BaseButton from "@/components/BaseButton.vue"
 import BottomNav from "@/components/BottomNav.vue"
+import HospitalMap from "@/components/HospitalMap.vue"
 import PageContainer from "@/components/PageContainer.vue"
 import { fetchHospitals, getCurrentLocation, type Hospital, type UserLocation } from "@/lib/hospitals"
 import { saveHospitalApplication } from "@/lib/skinai"
@@ -136,6 +137,13 @@ onMounted(() => {
         </div>
       </div>
     </section>
+
+    <HospitalMap
+      :hospitals="hospitals"
+      :selected-hospital-id="selectedHospitalId"
+      :user-location="userLocation"
+      @select="selectedHospitalId = $event"
+    />
 
     <section class="pb-4">
       <div class="mb-3 flex items-center justify-between">

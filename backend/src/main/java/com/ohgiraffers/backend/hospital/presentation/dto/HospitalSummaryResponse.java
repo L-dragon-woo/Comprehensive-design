@@ -9,6 +9,8 @@ public record HospitalSummaryResponse(
         long distanceMeters,
         double rating,
         String address,
+        double latitude,
+        double longitude,
         List<String> specialties,
         List<String> matchedTreatments,
         String waitTime,

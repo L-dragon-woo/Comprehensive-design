@@ -102,6 +102,8 @@ public class HospitalService {
                 distanceMeters,
                 hospital.rating(),
                 hospital.address(),
+                hospital.latitude(),
+                hospital.longitude(),
                 hospital.specialties(),
                 matchedTreatments,
                 hospital.availableTimes().isEmpty() ? "상담 가능" : hospital.availableTimes().get(0),

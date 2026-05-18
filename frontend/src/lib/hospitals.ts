@@ -10,6 +10,8 @@ export interface Hospital {
   distanceMeters: number
   rating: number
   address: string
+  latitude: number
+  longitude: number
   specialties: string[]
   matchedTreatments: string[]
   waitTime: string

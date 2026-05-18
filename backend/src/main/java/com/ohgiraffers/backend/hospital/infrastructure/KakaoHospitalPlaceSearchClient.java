@@ -20,10 +20,9 @@ public class KakaoHospitalPlaceSearchClient implements HospitalPlaceSearchClient
     private final String restApiKey;
 
     public KakaoHospitalPlaceSearchClient(
-            RestClient.Builder restClientBuilder,
             @Value("${skinai.kakao.rest-api-key:}") String restApiKey
     ) {
-        this.restClient = restClientBuilder
+        this.restClient = RestClient.builder()
                 .baseUrl("https://dapi.kakao.com")
                 .build();
         this.restApiKey = restApiKey;

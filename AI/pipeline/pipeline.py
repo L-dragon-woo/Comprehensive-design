@@ -99,8 +99,15 @@ class SkinPipeline:
 
     def __init__(self, config_path: str | Path, gender: str = None):
         print('\033[45mconfig.yaml 로드\033[0m')
+        config_path = Path(config_path).resolve()
         with open(config_path, encoding="utf-8") as f:
             self._cfg = yaml.safe_load(f)
+
+        configured_root = Path(self._cfg.get("root_dir", config_path.parent))
+        configured_model = configured_root / self._cfg["face_landmarker_model"]
+        if not configured_model.exists():
+            configured_root = config_path.parent
+        self._cfg["root_dir"] = str(configured_root)
 
         self._gender = (gender or self._cfg.get("gender", "male")).lower()
         print(f'\033[45mgender: {self._gender}\033[0m')

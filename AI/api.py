@@ -44,11 +44,11 @@ class ChatResponse(BaseModel):
 
 def _fallback_chat(message: str) -> str:
     lowered = message.lower()
-    if "priority" in lowered or "먼저" in message or "우선" in message:
-        return "현재 결과 기준으로는 수분/탄력 보완 상담을 먼저 받고, 색소 고민이 크면 피코토닝 계열 상담을 함께 비교해보는 흐름이 좋아요."
+    if "priority" in lowered or "먼저" in message or "우선" in message or "순위" in message:
+        return "현재 결과 기준으로는 수분과 탄력 보완 상담을 먼저 받고, 색소 고민이 크다면 피코토닝 계열 상담을 함께 비교해보는 흐름이 좋습니다."
     if "주의" in message or "확인" in message:
-        return "시술 전에는 최근 피부 시술 이력, 알레르기, 복용 약, 임신 가능성, 회복 가능 기간을 상담실에 꼭 공유해 주세요."
-    return "분석 결과를 기준으로 피부 장벽, 수분, 색소 고민을 함께 보면서 시술 강도와 회복 기간을 조절하는 상담을 추천드려요."
+        return "시술 전에는 최근 피부 시술 이력, 알레르기, 복용 중인 약, 임신 가능성, 회복 가능 기간을 상담실에 꼭 공유해 주세요."
+    return "분석 결과를 기준으로 피부 장벽, 수분, 색소 고민을 함께 보면서 시술 강도와 회복 기간을 조절하는 상담을 추천드립니다."
 
 
 @app.get("/health")

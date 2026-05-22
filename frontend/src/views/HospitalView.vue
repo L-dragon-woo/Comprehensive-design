@@ -75,7 +75,7 @@ onMounted(() => loadHospitals(true))
         <div class="flex gap-2">
           <div class="relative flex-1">
             <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input v-model="query" type="text" placeholder="피부과, 병원 이름 등" class="h-12 w-full rounded-xl bg-input pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" @keydown.enter="loadHospitals(false)" />
+            <input v-model="query" type="text" placeholder="피부과 병원 이름" class="h-12 w-full rounded-xl bg-input pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" @keydown.enter="loadHospitals(false)" />
           </div>
           <BaseButton class="h-12" @click="loadHospitals(false)">검색</BaseButton>
         </div>

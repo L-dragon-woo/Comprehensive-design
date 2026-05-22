@@ -16,7 +16,7 @@ const suggestedQuestions = [
   "추천 시술을 쉽게 설명해줘",
   "가장 먼저 상담받을 시술은 뭐야?",
   "시술 전 주의사항을 알려줘",
-  "리쥬란과 피코토닝 중 무엇이 우선이야?",
+  "리쥬란과 피코토닝 중 무엇을 우선해야 해?",
 ]
 const messages = ref<ChatMessage[]>([
   {
@@ -61,7 +61,12 @@ async function handleSend(messageText?: string) {
   try {
     messages.value.push({ id: `${Date.now()}-ai`, role: "assistant", content: await requestAIResponse(text), timestamp: new Date() })
   } catch (e) {
-    messages.value.push({ id: `${Date.now()}-err`, role: "assistant", content: e instanceof Error ? e.message : "답변을 불러오지 못했습니다.", timestamp: new Date() })
+    messages.value.push({
+      id: `${Date.now()}-err`,
+      role: "assistant",
+      content: e instanceof Error ? e.message : "답변을 불러오지 못했습니다.",
+      timestamp: new Date(),
+    })
   } finally {
     isLoading.value = false
     scrollToBottom()

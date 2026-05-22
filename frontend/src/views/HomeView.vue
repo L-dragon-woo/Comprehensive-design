@@ -114,7 +114,7 @@ onUnmounted(() => {
             <Shield class="h-5 w-5 text-primary" />
           </div>
           <p class="text-sm leading-relaxed text-muted-foreground">
-            AI 분석은 진료를 대체하지 않으며, 실제 시술 여부와 강도는 전문 상담을 통해 결정하는 것이 좋습니다.
+            AI 분석은 진료를 대체하지 않습니다. 실제 시술 여부와 강도는 전문가 상담을 통해 결정하는 것이 좋습니다.
           </p>
         </div>
       </div>

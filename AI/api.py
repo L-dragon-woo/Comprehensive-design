@@ -192,6 +192,49 @@ def _fallback_chat(message: str, analysis: dict[str, Any] | None = None) -> str:
     )
 
 
+def _extract_llm_text(content: Any) -> str:
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict) and "text" in item:
+                parts.append(str(item["text"]))
+            else:
+                parts.append(str(item))
+        return "".join(parts)
+    return str(content)
+
+
+def _llm_chat_with_analysis(message: str, analysis: dict[str, Any]) -> str:
+    from langchain.chat_models import init_chat_model
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    try:
+        from config import AI_MODEL
+    except Exception:
+        AI_MODEL = "openai:gpt-4o-mini"
+
+    llm = init_chat_model(model=AI_MODEL, temperature=0.2)
+    analysis_text = json.dumps(analysis, ensure_ascii=False, indent=2)
+    response = llm.invoke(
+        [
+            SystemMessage(
+                content=(
+                    "당신은 SkinAI의 피부 분석 상담 어시스턴트입니다. "
+                    "이미지 분석 결과가 이미 제공되어 있으므로 image_path를 다시 요구하거나 분석 도구 호출을 요청하지 마세요. "
+                    "제공된 분석 수치를 바탕으로 한국어로 간결하고 실용적인 상담 답변을 하세요. "
+                    "의학적 진단처럼 단정하지 말고, 실제 시술 여부는 전문가 상담이 필요하다고 안내하세요."
+                )
+            ),
+            HumanMessage(content=f"분석 결과 JSON:\n{analysis_text}\n\n사용자 질문:\n{message}"),
+        ]
+    )
+    return _extract_llm_text(getattr(response, "content", response)).strip()
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "ai"}
@@ -206,6 +249,11 @@ def chat(request: ChatRequest) -> ChatResponse:
         return ChatResponse(sessionId=session_id, content=_fallback_chat(request.message, analysis), mode="fallback")
 
     try:
+        if analysis:
+            content = _llm_chat_with_analysis(request.message, analysis)
+            if content:
+                return ChatResponse(sessionId=session_id, content=content, mode="llm")
+
         from agent.graph import ChatSession
 
         session = ChatSession(thread_id=session_id)

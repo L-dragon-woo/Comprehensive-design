@@ -29,6 +29,7 @@ const input = ref("")
 const isLoading = ref(false)
 const showSuggestions = ref(true)
 const messagesEnd = ref<HTMLElement | null>(null)
+const sessionId = ref<string | null>(null)
 const hasUserConsultation = computed(() => messages.value.some((message) => message.role === "user"))
 
 function getAIResponse(question: string) {
@@ -52,7 +53,24 @@ async function scrollToBottom() {
   messagesEnd.value?.scrollIntoView({ behavior: "smooth" })
 }
 
-function handleSend(messageText?: string) {
+async function requestAIResponse(question: string) {
+  try {
+    const response = await fetch("/api/consultations/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: question, sessionId: sessionId.value }),
+    })
+    if (!response.ok) throw new Error(`AI request failed: ${response.status}`)
+    const data = await response.json()
+    if (typeof data.sessionId === "string") sessionId.value = data.sessionId
+    if (typeof data.content === "string" && data.content.trim()) return data.content
+  } catch (error) {
+    console.warn(error)
+  }
+  return getAIResponse(question)
+}
+
+async function handleSend(messageText?: string) {
   const text = messageText || input.value.trim()
   if (!text || isLoading.value) return
   messages.value.push({ id: Date.now().toString(), role: "user", content: text, timestamp: new Date() })
@@ -61,8 +79,8 @@ function handleSend(messageText?: string) {
   showSuggestions.value = false
   scrollToBottom()
 
-  window.setTimeout(() => {
-    messages.value.push({ id: `${Date.now()}-ai`, role: "assistant", content: getAIResponse(text), timestamp: new Date() })
+  window.setTimeout(async () => {
+    messages.value.push({ id: `${Date.now()}-ai`, role: "assistant", content: await requestAIResponse(text), timestamp: new Date() })
     isLoading.value = false
     scrollToBottom()
   }, 1500)

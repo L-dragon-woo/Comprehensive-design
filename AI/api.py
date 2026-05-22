@@ -76,6 +76,13 @@ async def analyze(
     image: UploadFile = File(...),
     gender: str = Form("female"),
 ) -> dict[str, Any]:
+    if image.content_type and image.content_type not in {"image/jpeg", "image/png", "image/webp"}:
+        return {
+            "status": "rejected",
+            "message": "Unsupported image type. Upload JPEG, PNG, or WebP.",
+            "result": None,
+        }
+
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     suffix = Path(image.filename or "image.jpg").suffix or ".jpg"
     image_path = UPLOAD_DIR / f"{uuid.uuid4()}{suffix}"
@@ -88,7 +95,8 @@ async def analyze(
         pipe = SkinPipeline(PIPELINE_DIR / "config.yaml", gender=gender)
         result = pipe.predict_single(str(image_path))
         if result:
-            return {"status": "completed", "imagePath": str(image_path), "result": result}
+            status = result.get("status", "completed") if isinstance(result, dict) else "completed"
+            return {"status": status, "imagePath": str(image_path), "result": result}
     except Exception as exc:
         return {
             "status": "fallback",

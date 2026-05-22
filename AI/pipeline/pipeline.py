@@ -168,7 +168,33 @@ class SkinPipeline:
         print('\033[45m전처리\033[0m')
         crops = self._preprocessor.process(image_source)
         if crops is None:
-            return None   # 얼굴 미검출
+            return {
+                "status": "rejected",
+                "reject_reason": "face_not_detected",
+                "quality": getattr(self._preprocessor, "last_quality_report", None),
+                "age": None,
+                "pigment": {"left": None, "right": None},
+                "wrinkle": {sector: None for sector in ["forehead", "right_eye", "left_eye", "nasolabial", "perioral", "right_vol", "left_vol"]},
+                "homogenity": {"radiance": None, "texture": None},
+                "cheek_sagging": {"right": None, "left": None, "total": None},
+                "chin_sagging": {"right": None, "left": None, "total": None},
+                "valid_sagging": False,
+                "gender": self._gender,
+            }
+        if crops.get("rejected"):
+            return {
+                "status": "rejected",
+                "reject_reason": ",".join(crops.get("quality", {}).get("reasons", [])),
+                "quality": crops.get("quality"),
+                "age": None,
+                "pigment": {"left": None, "right": None},
+                "wrinkle": {sector: None for sector in ["forehead", "right_eye", "left_eye", "nasolabial", "perioral", "right_vol", "left_vol"]},
+                "homogenity": {"radiance": None, "texture": None},
+                "cheek_sagging": {"right": None, "left": None, "total": None},
+                "chin_sagging": {"right": None, "left": None, "total": None},
+                "valid_sagging": False,
+                "gender": self._gender,
+            }
 
         # EfficientNet 예측
         print('\033[45m--- EfficientNet ---\033[0m')
@@ -194,6 +220,8 @@ class SkinPipeline:
             sagging_result = {"cheek": null, "chin": null}
 
         return {
+            "status":        "completed",
+            "quality":       crops.get("quality"),
             "age":           age,
             "pigment":       pigment,
             "wrinkle":       wrinkle,

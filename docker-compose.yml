@@ -1,0 +1,42 @@
+services:
+  ai:
+    build:
+      context: ./AI
+      dockerfile: Dockerfile
+    env_file:
+      - ./AI/.env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ai-uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      AI_SERVICE_URL: http://ai:8000
+    ports:
+      - "8080:8080"
+    depends_on:
+      ai:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      VITE_API_PROXY_TARGET: http://backend:8080
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  ai-uploads:

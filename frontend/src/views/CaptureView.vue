@@ -4,7 +4,7 @@ import { onBeforeUnmount, onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
 import BaseButton from "@/components/BaseButton.vue"
 import { apiFetch } from "@/lib/api"
-import { normalizeAnalysisResponse, saveLastAnalysis } from "@/lib/skinai"
+import { saveLastAnalysis } from "@/lib/skinai"
 
 const router = useRouter()
 const video = ref<HTMLVideoElement | null>(null)
@@ -73,7 +73,7 @@ async function analyze() {
   try {
     const res = await apiFetch("/api/analyses", { method: "POST", body: formData })
     if (!res.ok) throw new Error(`분석 요청에 실패했습니다. (${res.status})`)
-    saveLastAnalysis(normalizeAnalysisResponse(await res.json()))
+    saveLastAnalysis(await res.json())
     router.push("/result")
   } catch (e) {
     error.value = e instanceof Error ? e.message : "분석을 완료하지 못했습니다."

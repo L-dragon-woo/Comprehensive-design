@@ -12,9 +12,9 @@ const props = defineProps<{
 }>()
 
 const details = [
-  { label: "수분", score: props.hydration, icon: Droplets },
-  { label: "유분", score: props.sebum, icon: Sun },
-  { label: "모공", score: props.pores, icon: CircleDot },
+  { label: "색소", score: props.hydration, icon: Droplets },
+  { label: "주름", score: props.sebum, icon: Sun },
+  { label: "피부결", score: props.pores, icon: CircleDot },
 ]
 </script>
 

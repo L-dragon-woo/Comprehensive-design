@@ -12,6 +12,7 @@ import { apiFetch } from "@/lib/api"
 import { getLastAnalysis, type ChatMessage } from "@/lib/skinai"
 
 const analysis = getLastAnalysis()
+const chatAnalysis = analysis?.rawAnalysis || analysis
 const suggestedQuestions = [
   "추천 시술을 쉽게 설명해줘",
   "가장 먼저 상담받을 시술은 뭐야?",
@@ -32,6 +33,7 @@ const showSuggestions = ref(true)
 const messagesEnd = ref<HTMLElement | null>(null)
 const sessionId = ref<string | null>(null)
 const hasUserConsultation = computed(() => messages.value.some((message) => message.role === "user"))
+const metricScore = (id: string) => analysis?.metrics?.find((metric) => metric.id === id)?.score || 0
 
 async function scrollToBottom() {
   await nextTick()
@@ -42,7 +44,7 @@ async function requestAIResponse(question: string) {
   const res = await apiFetch("/api/consultations/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: question, sessionId: sessionId.value, analysis }),
+    body: JSON.stringify({ message: question, sessionId: sessionId.value, analysis: chatAnalysis }),
   })
   if (!res.ok) throw new Error(`AI 상담 요청에 실패했습니다. (${res.status})`)
   const data = await res.json()
@@ -92,9 +94,9 @@ function handleKeydown(event: KeyboardEvent) {
             :overall-score="analysis.overallScore || 0"
             :skin-type="analysis.skinType || '피부 타입 분석'"
             :main-concern="(analysis.concerns || []).join(', ')"
-            :hydration="analysis.metrics?.[0]?.score || 0"
-            :sebum="analysis.metrics?.[1]?.score || 0"
-            :pores="analysis.metrics?.[2]?.score || 0"
+            :hydration="metricScore('pigment')"
+            :sebum="metricScore('wrinkle')"
+            :pores="metricScore('texture')"
           />
           <ChatBubble v-for="message in messages" :key="message.id" :message="message" />
           <ChatTypingIndicator v-if="isLoading" />

@@ -10,6 +10,7 @@ __pycache__/
 
 .env
 .env.local
+analysis-result.json
 
 .pytest_cache/
 .mypy_cache/

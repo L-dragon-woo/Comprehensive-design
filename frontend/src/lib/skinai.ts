@@ -26,6 +26,7 @@ export type AnalysisResult = {
   overallScore?: number
   date?: string
   skinType?: string
+  rawAnalysis?: unknown
   metrics?: Array<{ id: string; title: string; score: number; status: string; description: string }>
   concerns?: string[]
   treatments?: Array<{ name: string; match: string; reason: string; note: string }>
@@ -197,6 +198,7 @@ export function normalizeAnalysisResponse(payload: unknown): AnalysisResult {
     ),
     date: String(source.date || root.date || new Intl.DateTimeFormat("ko-KR").format(new Date())),
     skinType: normalizeSkinType(source.skinType),
+    rawAnalysis: source,
     metrics,
     concerns,
     treatments,
@@ -223,7 +225,7 @@ export function formatApplicationDate(value: string) {
   return new Intl.DateTimeFormat("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date)
 }
 
-export function saveLastAnalysis(result: AnalysisResult) {
+export function saveLastAnalysis(result: unknown) {
   localStorage.setItem(analysisStorageKey, JSON.stringify(normalizeAnalysisResponse(result)))
   window.dispatchEvent(new CustomEvent("skinai:analysis-updated"))
 }

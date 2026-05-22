@@ -9,6 +9,9 @@ RUN gradle bootJar --no-daemon
 
 FROM eclipse-temurin:17-jre
 
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+
 WORKDIR /app
 COPY --from=build /app/build/libs/*.jar app.jar
 

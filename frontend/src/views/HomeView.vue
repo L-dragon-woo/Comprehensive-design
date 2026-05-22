@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowRight, CalendarCheck, Camera, ChevronRight, ClipboardList, FileCheck2, MapPin, MessageCircle, Shield, Sparkles, TrendingUp } from "lucide-vue-next"
+import { ArrowRight, Camera, ChevronRight, MapPin, MessageCircle, Shield, Sparkles } from "lucide-vue-next"
 import { computed, onMounted, onUnmounted, ref } from "vue"
 import AppHeader from "@/components/AppHeader.vue"
 import BaseButton from "@/components/BaseButton.vue"
@@ -7,33 +7,27 @@ import BottomNav from "@/components/BottomNav.vue"
 import FeatureCard from "@/components/FeatureCard.vue"
 import PageContainer from "@/components/PageContainer.vue"
 import ScoreRing from "@/components/ScoreRing.vue"
-import { formatApplicationDate, getHospitalApplications, type HospitalApplication } from "@/lib/skinai"
+import { formatApplicationDate, getHospitalApplications, getLastAnalysis, type HospitalApplication } from "@/lib/skinai"
 
-const hasRecentAnalysis = true
-const recentScore = 78
-const lastAnalysisDate = "2026.04.30"
 const applications = ref<HospitalApplication[]>([])
+const analysis = ref(getLastAnalysis())
 const latestApplication = computed(() => applications.value[0])
 
-function refreshApplications() {
+function refresh() {
   applications.value = getHospitalApplications()
-}
-
-function applicationStatusLabel(status: HospitalApplication["status"]) {
-  if (status === "reviewing") return "검토 중"
-  if (status === "confirmed") return "예약 확정"
-  return "제출 완료"
+  analysis.value = getLastAnalysis()
 }
 
 onMounted(() => {
-  refreshApplications()
-  window.addEventListener("skinai:hospital-application-updated", refreshApplications)
-  window.addEventListener("storage", refreshApplications)
+  refresh()
+  window.addEventListener("skinai:hospital-application-updated", refresh)
+  window.addEventListener("skinai:analysis-updated", refresh)
+  window.addEventListener("storage", refresh)
 })
-
 onUnmounted(() => {
-  window.removeEventListener("skinai:hospital-application-updated", refreshApplications)
-  window.removeEventListener("storage", refreshApplications)
+  window.removeEventListener("skinai:hospital-application-updated", refresh)
+  window.removeEventListener("skinai:analysis-updated", refresh)
+  window.removeEventListener("storage", refresh)
 })
 </script>
 
@@ -45,105 +39,71 @@ onUnmounted(() => {
         <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
           <Sparkles class="h-5 w-5 text-primary" />
         </div>
-        <span class="text-sm font-semibold text-primary">AI 시술 추천</span>
+        <span class="text-sm font-semibold text-primary">AI 피부 시술 추천</span>
       </div>
-
       <h1 class="mb-3 text-2xl font-bold leading-tight text-foreground md:text-3xl">
         사진 한 장으로<br />
-        <span class="text-primary">필요한 시술</span>을 추천받으세요
+        <span class="text-primary">피부 상태</span>를 확인하세요
       </h1>
-
       <p class="mb-8 text-base leading-relaxed text-muted-foreground">
-        피부 고민과 분석 지표를 바탕으로<br class="md:hidden" />
-        적합한 시술과 상담 포인트를 정리해 드려요
+        피부 이미지를 AI로 분석하고 맞춤 시술과 병원 연결까지 한 번에 확인합니다.
       </p>
-
       <RouterLink to="/capture" class="block">
-        <BaseButton size="lg" class="h-14 w-full rounded-2xl text-base font-semibold shadow-lg shadow-primary/25 hover:scale-[1.02] active:scale-[0.98]">
+        <BaseButton size="lg" class="h-14 w-full rounded-2xl text-base font-semibold">
           <Camera class="h-5 w-5" />
-          시술 추천 시작하기
+          피부 분석 시작
           <ArrowRight class="h-4 w-4" />
         </BaseButton>
       </RouterLink>
     </section>
 
-    <section v-if="hasRecentAnalysis" class="py-6">
+    <section v-if="analysis" class="py-6">
       <div class="mb-4 flex items-center justify-between">
-        <h2 class="text-lg font-semibold text-foreground">최근 추천 리포트</h2>
-        <RouterLink to="/history" class="flex items-center gap-1 text-sm font-medium text-primary hover:underline">
+        <h2 class="text-lg font-semibold">최근 분석 결과</h2>
+        <RouterLink to="/history" class="flex items-center gap-1 text-sm font-medium text-primary">
           전체보기
           <ChevronRight class="h-4 w-4" />
         </RouterLink>
       </div>
-
-      <RouterLink to="/result" class="group block">
-        <div class="rounded-2xl border border-border bg-card p-5 shadow-sm transition-all hover:border-primary/30 hover:shadow-md">
+      <RouterLink to="/result" class="block">
+        <div class="rounded-2xl border border-border bg-card p-5 shadow-sm">
           <div class="flex items-center gap-5">
-            <ScoreRing :score="recentScore" :size="80" :stroke-width="6" />
+            <ScoreRing :score="analysis.overallScore || 0" :size="80" :stroke-width="6" />
             <div class="flex-1">
-              <p class="mb-1 text-sm text-muted-foreground">{{ lastAnalysisDate }} 추천</p>
-              <p class="mb-2 text-lg font-semibold text-foreground">추천 적합도</p>
-              <div class="flex items-center gap-2">
-                <span class="inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
-                  <TrendingUp class="mr-1 h-3 w-3" />
-                  리쥬란 상담 권장
+              <p class="mb-1 text-sm text-muted-foreground">{{ analysis.date || "오늘 분석" }}</p>
+              <p class="mb-2 text-lg font-semibold">{{ analysis.skinType || "피부 타입 분석" }}</p>
+              <div class="flex flex-wrap gap-2">
+                <span v-for="concern in analysis.concerns || []" :key="concern" class="rounded-full bg-success/10 px-2 py-0.5 text-xs text-success">
+                  {{ concern }}
                 </span>
-                <span class="text-xs text-muted-foreground">수분/결 개선 중심</span>
               </div>
             </div>
-            <ChevronRight class="h-5 w-5 text-muted-foreground transition-colors group-hover:text-primary" />
+            <ChevronRight class="h-5 w-5 text-muted-foreground" />
           </div>
         </div>
       </RouterLink>
     </section>
 
     <section v-if="latestApplication" class="py-6">
-      <div class="mb-4 flex items-center justify-between">
-        <h2 class="text-lg font-semibold text-foreground">병원 신청 현황</h2>
-        <RouterLink to="/hospitals" class="flex items-center gap-1 text-sm font-medium text-primary hover:underline">
-          병원찾기
-          <ChevronRight class="h-4 w-4" />
-        </RouterLink>
-      </div>
-
+      <h2 class="mb-4 text-lg font-semibold">병원 신청 현황</h2>
       <div class="rounded-2xl border border-primary/20 bg-card p-5 shadow-sm">
-        <div class="mb-4 flex items-start justify-between gap-3">
-          <div class="flex items-start gap-3">
-            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-              <FileCheck2 class="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p class="text-base font-semibold text-foreground">{{ latestApplication.hospitalName }}</p>
-              <p class="mt-1 text-sm text-muted-foreground">{{ formatApplicationDate(latestApplication.submittedAt) }} 제출</p>
-            </div>
-          </div>
-          <span class="shrink-0 rounded-full bg-success/10 px-3 py-1 text-xs font-semibold text-success">
-            {{ applicationStatusLabel(latestApplication.status) }}
-          </span>
-        </div>
-
-        <div class="mb-4 flex flex-wrap gap-1.5">
-          <span v-for="item in latestApplication.includedItems" :key="item" class="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
-            {{ item }}
-          </span>
-        </div>
-
-        <RouterLink to="/hospitals" class="block">
-          <BaseButton variant="outline" size="lg" class="h-12 w-full rounded-xl">
+        <p class="font-semibold">{{ latestApplication.hospitalName }}</p>
+        <p class="mt-1 text-sm text-muted-foreground">{{ formatApplicationDate(latestApplication.submittedAt) }} 제출</p>
+        <RouterLink to="/hospitals" class="mt-4 block">
+          <BaseButton variant="outline" class="w-full">
             <MapPin class="h-4 w-4" />
-            신청 현황 확인하기
+            병원 목록 보기
           </BaseButton>
         </RouterLink>
       </div>
     </section>
 
     <section class="py-6">
-      <h2 class="mb-4 text-lg font-semibold text-foreground">시술 추천 흐름</h2>
+      <h2 class="mb-4 text-lg font-semibold">주요 기능</h2>
       <div class="grid grid-cols-2 gap-3">
-        <FeatureCard href="/capture" :icon="Camera" title="피부 촬영" description="추천에 필요한 상태를 확인해요" />
-        <FeatureCard href="/result" :icon="ClipboardList" icon-color="text-success" icon-bg="bg-success/10" title="시술 추천" description="고민별 우선순위를 제안해요" />
-        <FeatureCard href="/chat" :icon="MessageCircle" icon-color="text-warning" icon-bg="bg-warning/10" title="시술 상담" description="효과와 주의사항을 물어보세요" />
-        <FeatureCard href="/hospitals" :icon="MapPin" icon-color="text-muted-foreground" icon-bg="bg-muted" title="병원 찾기" description="결과지를 제출하고 상담해요" />
+        <FeatureCard href="/capture" :icon="Camera" title="피부 촬영" description="카메라로 바로 분석" />
+        <FeatureCard href="/chat" :icon="MessageCircle" icon-color="text-warning" icon-bg="bg-warning/10" title="AI 상담" description="시술 궁금증 상담" />
+        <FeatureCard href="/hospitals" :icon="MapPin" icon-color="text-muted-foreground" icon-bg="bg-muted" title="병원 찾기" description="주변 피부과 검색" />
       </div>
     </section>
 
@@ -153,12 +113,9 @@ onUnmounted(() => {
           <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-card">
             <Shield class="h-5 w-5 text-primary" />
           </div>
-          <div>
-            <h3 class="mb-1 text-base font-semibold text-foreground">상담 전 참고용 추천</h3>
-            <p class="text-sm leading-relaxed text-muted-foreground">
-              AI 추천은 진료를 대체하지 않으며, 실제 시술 여부와 강도는 전문 상담을 통해 결정하는 것이 좋아요.
-            </p>
-          </div>
+          <p class="text-sm leading-relaxed text-muted-foreground">
+            AI 분석은 진료를 대체하지 않으며, 실제 시술 여부와 강도는 전문 상담을 통해 결정하는 것이 좋습니다.
+          </p>
         </div>
       </div>
     </section>

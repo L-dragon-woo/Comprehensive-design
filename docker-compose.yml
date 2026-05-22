@@ -17,8 +17,6 @@ services:
       context: ./AI
       dockerfile: Dockerfile
     env_file:
-      - path: ./AI/.env.example
-        required: true
       - path: ./AI/.env
         required: false
     ports:
@@ -36,8 +34,6 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     env_file:
-      - path: ./backend/.env.example
-        required: true
       - path: ./backend/.env
         required: false
     environment:

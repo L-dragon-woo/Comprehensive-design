@@ -41,6 +41,7 @@ const metricLabels: Record<string, { title: string; status: string; description:
   pores: { title: "모공", status: "보통", description: "모공과 피부결 상태를 확인하세요" },
   pigment: { title: "색소", status: "관리 필요", description: "잡티와 기미 가능성을 확인하세요" },
   wrinkle: { title: "주름", status: "관리 필요", description: "주름과 탄력 상태를 확인하세요" },
+  texture: { title: "피부결", status: "보통", description: "광채와 피부결 균일도를 확인하세요" },
   age: { title: "피부 나이", status: "참고", description: "AI가 추정한 피부 나이입니다" },
 }
 
@@ -85,6 +86,11 @@ function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.map(String).filter(Boolean) : []
 }
 
+function averageScore(values: unknown[]) {
+  const numbers = values.map((value) => Number(value)).filter(Number.isFinite)
+  return numbers.length ? asNumber(numbers.reduce((sum, value) => sum + value, 0) / numbers.length) : 0
+}
+
 function statusForScore(score: number) {
   if (score >= 80) return "양호"
   if (score >= 60) return "보통"
@@ -107,6 +113,15 @@ export function normalizeAnalysisResponse(payload: unknown): AnalysisResult {
   const source = Object.keys(result).length ? result : root
   const scores = asRecord(source.scores)
   const rawMetrics = Array.isArray(source.metrics) ? source.metrics : []
+  const pigment = asRecord(source.pigment)
+  const wrinkle = asRecord(source.wrinkle)
+  const homogenity = asRecord(source.homogenity)
+  const aiModelScores: Record<string, number> = {}
+
+  if (typeof source.age === "number") aiModelScores.age = asNumber(source.age)
+  if (Object.keys(pigment).length) aiModelScores.pigment = averageScore(Object.values(pigment))
+  if (Object.keys(wrinkle).length) aiModelScores.wrinkle = averageScore(Object.values(wrinkle))
+  if (Object.keys(homogenity).length) aiModelScores.texture = averageScore(Object.values(homogenity))
 
   const metrics = rawMetrics.length
     ? rawMetrics.map((metric, index) => {
@@ -126,15 +141,22 @@ export function normalizeAnalysisResponse(payload: unknown): AnalysisResult {
           description: String(item.description || meta.description),
         }
       })
-    : Object.entries(scores).map(([id, value]) => {
+    : Object.entries(Object.keys(scores).length ? scores : aiModelScores).map(([id, value]) => {
         const score = asNumber(value)
         const meta = metricLabels[id] || { title: id, status: statusForScore(score), description: "AI 분석 항목" }
         return { id, title: meta.title, score, status: statusForScore(score), description: meta.description }
       })
 
-  const concerns = asStringArray(source.concerns).length
-    ? asStringArray(source.concerns)
-    : asStringArray(source.topConcerns).map((concern) => concernLabels[concern] || concern)
+  const concerns =
+    asStringArray(source.concerns).length
+      ? asStringArray(source.concerns)
+      : asStringArray(source.topConcerns).length
+        ? asStringArray(source.topConcerns).map((concern) => concernLabels[concern] || concern)
+        : metrics
+            .filter((metric) => metric.id !== "age")
+            .sort((a, b) => a.score - b.score)
+            .slice(0, 3)
+            .map((metric) => metric.title)
 
   const treatments = Array.isArray(source.treatments)
     ? source.treatments.map((treatment) => {
@@ -146,24 +168,39 @@ export function normalizeAnalysisResponse(payload: unknown): AnalysisResult {
           note: String(item.note || "전문가 상담 후 진행 여부를 결정하세요."),
         }
       })
-    : asStringArray(source.recommendedTreatments || source.treatments || source.recommendations).map((name) => {
-        const meta = treatmentLabels[name] || { name, reason: "AI 분석 결과 기반 추천", note: "전문가 상담 후 진행 여부를 결정하세요." }
+    : (asStringArray(source.recommendedTreatments || source.treatments || source.recommendations).length
+        ? asStringArray(source.recommendedTreatments || source.treatments || source.recommendations)
+        : ["Rejuran Healer", "Pico toning", "Aquapeel"]
+      ).map((name) => {
+        const meta = treatmentLabels[name] || {
+          name,
+          reason: "AI 분석 결과 기반 추천",
+          note: "전문가 상담 후 진행 여부를 결정하세요.",
+        }
         return { name: meta.name, match: "추천", reason: meta.reason, note: meta.note }
       })
+
+  const recommendations = asStringArray(source.managementTips || source.careTips || source.recommendations).length
+    ? asStringArray(source.managementTips || source.careTips || source.recommendations).map((item) => treatmentLabels[item]?.note || item)
+    : [
+        "자외선 차단제를 꾸준히 사용하고 색소 변화를 관찰하세요.",
+        "수분과 장벽 관리로 피부 컨디션을 먼저 안정화하세요.",
+        "시술 강도와 주기는 전문가 상담 후 단계적으로 결정하세요.",
+      ]
 
   return {
     overallScore: asNumber(
       source.overallScore || root.overallScore,
-      metrics.length ? Math.round(metrics.reduce((sum, metric) => sum + metric.score, 0) / metrics.length) : 0,
+      metrics.length
+        ? Math.round(metrics.filter((metric) => metric.id !== "age").reduce((sum, metric) => sum + metric.score, 0) / Math.max(1, metrics.filter((metric) => metric.id !== "age").length))
+        : 0,
     ),
     date: String(source.date || root.date || new Intl.DateTimeFormat("ko-KR").format(new Date())),
     skinType: normalizeSkinType(source.skinType),
     metrics,
     concerns,
     treatments,
-    recommendations: asStringArray(source.managementTips || source.careTips || source.recommendations).map(
-      (item) => treatmentLabels[item]?.note || item,
-    ),
+    recommendations,
   }
 }
 

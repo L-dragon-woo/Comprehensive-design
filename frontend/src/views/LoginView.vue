@@ -30,8 +30,8 @@ function validateRegister() {
     error.value = "아이디는 영문, 숫자, 점, 밑줄, 하이픈으로 3-30자 입력해 주세요."
     return false
   }
-  if (password.value.length < 8) {
-    error.value = "비밀번호는 8자 이상 입력해 주세요."
+  if (password.value.length < 4) {
+    error.value = "비밀번호는 4자 이상 입력해 주세요."
     return false
   }
   if (password.value !== passwordConfirm.value) {

@@ -66,8 +66,8 @@ public class UserService {
     }
 
     private void validatePassword(String password) {
-        if (password == null || password.length() < 8 || password.length() > 100) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "password must be 8-100 characters");
+        if (password == null || password.length() < 4 || password.length() > 100) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "password must be 4-100 characters");
         }
     }
 

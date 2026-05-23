@@ -14,18 +14,29 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 @Configuration
 public class SecurityConfig {
     @Bean
+    WebSecurityCustomizer webSecurityCustomizer() {
+        return web -> web.ignoring().requestMatchers(PathPatternRequestMatcher.pathPattern("/api/auth/**"));
+    }
+
+    @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, JwtService jwtService) throws Exception {
-        http.csrf(AbstractHttpConfigurer::disable)
+        http.csrf(csrf -> csrf.disable())
+                .cors(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/login", "/api/auth/register", "/api/auth/refresh", "/api/ai/health").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/hospitals/search").permitAll()
+                        .requestMatchers(PathPatternRequestMatcher.pathPattern("/error")).permitAll()
+                        .requestMatchers(PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/api/ai/health")).permitAll()
+                        .requestMatchers(PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/api/hospitals/search")).permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthFilter(jwtService), UsernamePasswordAuthenticationFilter.class);
         return http.build();

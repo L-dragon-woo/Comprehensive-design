@@ -1,10 +1,12 @@
 package com.ohgiraffers.backend.ai;
 
+import java.time.Instant;
 import java.util.Map;
 
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.MultipartBodyBuilder;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -18,9 +20,11 @@ import org.springframework.web.reactive.function.client.WebClient;
 public class AiProxyController {
 
     private final WebClient aiClient;
+    private final ChatHistoryService chatHistoryService;
 
-    public AiProxyController(WebClient.Builder builder, AiClientProperties properties) {
+    public AiProxyController(WebClient.Builder builder, AiClientProperties properties, ChatHistoryService chatHistoryService) {
         this.aiClient = builder.baseUrl(properties.baseUrl()).build();
+        this.chatHistoryService = chatHistoryService;
     }
 
     @GetMapping("/api/ai/health")
@@ -33,14 +37,25 @@ public class AiProxyController {
     }
 
     @PostMapping("/api/consultations/messages")
-    public Map<String, Object> sendConsultationMessage(@org.springframework.web.bind.annotation.RequestBody ChatMessageRequest request) {
-        return aiClient.post()
+    public Map<String, Object> sendConsultationMessage(@org.springframework.web.bind.annotation.RequestBody ChatMessageRequest request, Authentication authentication) {
+        Map<String, Object> response = aiClient.post()
                 .uri("/api/chat")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .block();
+        if (response != null) {
+            String username = authentication == null ? "anonymous" : authentication.getName();
+            ChatHistoryDocument saved = chatHistoryService.saveTurn(username, request, response);
+            response.putIfAbsent("messageId", saved.getId());
+            response.putIfAbsent("createdAt", instantString(saved.getCreatedAt()));
+        }
+        return response;
+    }
+
+    private String instantString(Instant instant) {
+        return instant == null ? null : instant.toString();
     }
 
     @PostMapping(value = "/api/analyses", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

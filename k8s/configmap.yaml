@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: skinai-config
+  namespace: skinai
+data:
+  AI_SERVICE_URL: http://ai:8000
+  SPRING_DATA_REDIS_HOST: redis
+  SPRING_DATA_REDIS_PORT: "6379"
+  SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/skinai
+  VITE_API_PROXY_TARGET: http://backend:8080
+  JWT_ISSUER: skinai
+  JWT_ACCESS_TTL_SECONDS: "1800"
+  JWT_REFRESH_TTL_SECONDS: "1209600"

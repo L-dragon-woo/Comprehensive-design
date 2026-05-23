@@ -63,5 +63,5 @@ kubectl delete -k k8s
 PVC까지 삭제하면 MongoDB/Redis/AI 업로드 데이터도 삭제됩니다.
 
 ```powershell
-kubectl delete pvc -n skinai mongo-data redis-data ai-uploads
+kubectl delete pvc -n skinai mongo-data mariadb-data redis-data ai-uploads
 ```

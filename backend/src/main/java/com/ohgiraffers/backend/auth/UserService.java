@@ -3,7 +3,7 @@ package com.ohgiraffers.backend.auth;
 import java.time.Instant;
 import java.util.Locale;
 
-import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -19,7 +19,7 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    public UserDocument register(String username, String password, String displayName) {
+    public UserEntity register(String username, String password, String displayName) {
         String normalizedUsername = normalizeUsername(username);
         validatePassword(password);
         String normalizedDisplayName = normalizeDisplayName(displayName, normalizedUsername);
@@ -29,20 +29,20 @@ public class UserService {
         }
 
         try {
-            return userRepository.save(new UserDocument(
+            return userRepository.save(new UserEntity(
                     normalizedUsername,
                     passwordEncoder.encode(password),
                     normalizedDisplayName,
                     Instant.now()
             ));
-        } catch (DuplicateKeyException e) {
+        } catch (DataIntegrityViolationException e) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "username already exists", e);
         }
     }
 
-    public UserDocument authenticate(String username, String password) {
+    public UserEntity authenticate(String username, String password) {
         String normalizedUsername = normalizeUsername(username);
-        UserDocument user = userRepository.findByUsername(normalizedUsername)
+        UserEntity user = userRepository.findByUsername(normalizedUsername)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid credentials"));
         if (!passwordEncoder.matches(password == null ? "" : password, user.getPasswordHash())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid credentials");

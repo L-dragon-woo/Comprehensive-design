@@ -6,6 +6,7 @@ resources:
   - secret.yaml
   - redis.yaml
   - mongo.yaml
+  - mariadb.yaml
   - ai.yaml
   - backend.yaml
   - frontend.yaml

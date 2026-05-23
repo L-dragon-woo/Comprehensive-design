@@ -48,7 +48,7 @@ public class AuthController {
             }
             return issueTokens(request.username(), "SkinAI Admin");
         }
-        UserDocument user = userService.authenticate(request.username(), request.password());
+        UserEntity user = userService.authenticate(request.username(), request.password());
         return issueTokens(user.getUsername(), user.getDisplayName());
     }
 
@@ -60,7 +60,7 @@ public class AuthController {
         if (adminUsername.equalsIgnoreCase(request.username()) || userService.exists(request.username())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "username already exists");
         }
-        UserDocument user = userService.register(request.username(), request.password(), request.displayName());
+        UserEntity user = userService.register(request.username(), request.password(), request.displayName());
         return issueTokens(user.getUsername(), user.getDisplayName());
     }
 

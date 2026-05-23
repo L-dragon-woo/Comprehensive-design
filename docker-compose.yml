@@ -24,6 +24,23 @@ services:
       timeout: 5s
       retries: 5
 
+  mariadb:
+    image: mariadb:11
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: skinai_auth
+      MARIADB_USER: skinai
+      MARIADB_PASSWORD: skinai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   ai:
     build:
       context: ./AI
@@ -52,6 +69,9 @@ services:
       AI_SERVICE_URL: http://ai:8000
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATASOURCE_URL: jdbc:mariadb://mariadb:3306/skinai_auth
+      SPRING_DATASOURCE_USERNAME: skinai
+      SPRING_DATASOURCE_PASSWORD: skinai
       SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/skinai
       SPRING_MONGODB_URI: mongodb://mongo:27017/skinai
     ports:
@@ -60,6 +80,8 @@ services:
       redis:
         condition: service_healthy
       mongo:
+        condition: service_healthy
+      mariadb:
         condition: service_healthy
       ai:
         condition: service_healthy
@@ -77,5 +99,6 @@ services:
 
 volumes:
   ai-uploads:
+  mariadb-data:
   mongo-data:
   redis-data:

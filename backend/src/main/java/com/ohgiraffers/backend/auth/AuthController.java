@@ -16,19 +16,22 @@ public class AuthController {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final RedisTokenService tokenService;
+    private final UserService userService;
 
     public AuthController(
             @Value("${app.auth.admin-username}") String adminUsername,
             @Value("${app.auth.admin-password}") String adminPassword,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
-            RedisTokenService tokenService
+            RedisTokenService tokenService,
+            UserService userService
     ) {
         this.adminUsername = adminUsername;
         this.adminPassword = adminPassword;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.tokenService = tokenService;
+        this.userService = userService;
     }
 
     @PostMapping("/login")
@@ -36,13 +39,29 @@ public class AuthController {
         if (request == null || request.username() == null || request.password() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "username and password are required");
         }
-        boolean passwordMatches = adminPassword.startsWith("{bcrypt}")
-                ? passwordEncoder.matches(request.password(), adminPassword.substring("{bcrypt}".length()))
-                : request.password().equals(adminPassword);
-        if (!adminUsername.equals(request.username()) || !passwordMatches) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid credentials");
+        if (adminUsername.equals(request.username())) {
+            boolean passwordMatches = adminPassword.startsWith("{bcrypt}")
+                    ? passwordEncoder.matches(request.password(), adminPassword.substring("{bcrypt}".length()))
+                    : request.password().equals(adminPassword);
+            if (!passwordMatches) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid credentials");
+            }
+            return issueTokens(request.username(), "SkinAI Admin");
         }
-        return issueTokens(request.username());
+        UserDocument user = userService.authenticate(request.username(), request.password());
+        return issueTokens(user.getUsername(), user.getDisplayName());
+    }
+
+    @PostMapping("/register")
+    public AuthResponse register(@RequestBody RegisterRequest request) {
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "registration data is required");
+        }
+        if (adminUsername.equalsIgnoreCase(request.username()) || userService.exists(request.username())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "username already exists");
+        }
+        UserDocument user = userService.register(request.username(), request.password(), request.displayName());
+        return issueTokens(user.getUsername(), user.getDisplayName());
     }
 
     @PostMapping("/refresh")
@@ -64,9 +83,13 @@ public class AuthController {
     }
 
     private AuthResponse issueTokens(String username) {
+        return issueTokens(username, username);
+    }
+
+    private AuthResponse issueTokens(String username, String displayName) {
         String accessToken = jwtService.createAccessToken(username);
         String refreshToken = jwtService.createRefreshToken(username);
         tokenService.saveRefreshToken(username, refreshToken, jwtService.refreshTtlSeconds());
-        return new AuthResponse(accessToken, refreshToken, jwtService.accessTtlSeconds(), "Bearer", new UserProfile(username, "SkinAI Admin"));
+        return new AuthResponse(accessToken, refreshToken, jwtService.accessTtlSeconds(), "Bearer", new UserProfile(username, displayName));
     }
 }

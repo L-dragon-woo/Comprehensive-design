@@ -53,6 +53,7 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/skinai
+      SPRING_MONGODB_URI: mongodb://mongo:27017/skinai
     ports:
       - "8080:8080"
     depends_on:

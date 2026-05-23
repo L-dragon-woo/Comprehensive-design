@@ -48,6 +48,21 @@ export async function login(username: string, password: string) {
   return data
 }
 
+export async function register(username: string, password: string, displayName: string) {
+  const res = await fetch("/api/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password, displayName }),
+  })
+  if (!res.ok) {
+    if (res.status === 409) throw new Error("이미 사용 중인 아이디입니다.")
+    throw new Error("회원가입 정보를 확인해 주세요.")
+  }
+  const data = (await res.json()) as AuthResponse
+  saveAuth(data)
+  return data
+}
+
 export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
   const headers = new Headers(init.headers)
   const token = getAccessToken()

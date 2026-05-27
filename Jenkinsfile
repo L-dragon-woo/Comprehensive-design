@@ -6,6 +6,10 @@ pipeline {
     timestamps()
   }
 
+  triggers {
+    pollSCM('H/2 * * * *')
+  }
+
   environment {
     CI = 'true'
   }
@@ -77,9 +81,15 @@ pipeline {
         catchError(buildResult: status, stageResult: 'UNSTABLE') {
           withCredentials([string(credentialsId: 'discord-webhook-url', variable: 'DISCORD_WEBHOOK_URL')]) {
             if (isUnix()) {
-              sh 'curl -fsS -H "Content-Type: application/json" -d @.discord-payload.json "$DISCORD_WEBHOOK_URL"'
+              sh 'status=$(curl -sS -o /dev/null -w "%{http_code}" -H "Content-Type: application/json" -d @.discord-payload.json "$DISCORD_WEBHOOK_URL"); echo "Discord webhook returned HTTP $status"; test "$status" = "204"'
             } else {
-              powershell 'Invoke-RestMethod -Uri $env:DISCORD_WEBHOOK_URL -Method Post -ContentType "application/json" -InFile ".discord-payload.json"'
+              powershell '''
+                $response = Invoke-WebRequest -Uri $env:DISCORD_WEBHOOK_URL -Method Post -ContentType "application/json" -InFile ".discord-payload.json" -UseBasicParsing
+                Write-Host "Discord webhook returned HTTP $($response.StatusCode)"
+                if ($response.StatusCode -ne 204) {
+                  throw "Unexpected Discord webhook status: $($response.StatusCode)"
+                }
+              '''
             }
           }
         }

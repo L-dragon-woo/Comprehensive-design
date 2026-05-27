@@ -4,7 +4,7 @@ metadata:
   name: skinai-config
   namespace: skinai
 data:
-  AI_SERVICE_URL: http://ai:8000
+  AI_SERVICE_URL: http://ai-service:8000
   SPRING_DATA_REDIS_HOST: redis
   SPRING_DATA_REDIS_PORT: "6379"
   SPRING_DATASOURCE_URL: jdbc:mariadb://mariadb:3306/skinai_auth

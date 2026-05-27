@@ -1,7 +1,0 @@
-.env
-__pycache__/
-*.pyc
-.ipynb_checkpoints/
-uploads/
-.cache/
-analysis-result.json

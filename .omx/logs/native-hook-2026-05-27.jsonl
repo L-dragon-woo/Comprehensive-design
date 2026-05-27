@@ -1,0 +1,1 @@
+{"timestamp":"2026-05-27T16:33:29.474Z","type":"native_hook_stdin_parse_error","hook_event_name":"Unknown","error":"Expected ',' or '}' after property value in JSON at position 7637 (line 1 column 7638)"}

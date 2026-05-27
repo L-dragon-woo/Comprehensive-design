@@ -49,6 +49,15 @@ corepack pnpm lint
 corepack pnpm build
 ```
 
+## CI
+
+이 저장소는 프론트엔드만 검증합니다.
+
+- GitHub Actions: `.github/workflows/frontend-ci.yml`
+- Jenkins: `Jenkinsfile`
+
+두 파이프라인 모두 `frontend` 디렉터리에서 의존성 설치, 타입 검사, 빌드를 실행합니다. AWS 배포 단계는 추후 배포 대상이 정해진 뒤 추가합니다.
+
 ## 참고
 
 - API 연동이 필요한 프론트 계약은 `frontend/apiList.md`에 정리되어 있습니다.

@@ -14,6 +14,7 @@ next.user-config.*
 
 # Common ignores
 .idea/
+.omx/
 node_modules
 .next/
 dist/

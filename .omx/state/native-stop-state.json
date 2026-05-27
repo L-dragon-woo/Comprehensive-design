@@ -32,11 +32,11 @@
     },
     "019e6a57-c618-7da1-8b29-a2eaac6cc36a": {
       "ordinary_no_progress_guard": {
-        "fingerprint": "ordinary|?�정?��??�니?? 추�?/?�정???�일: - [.github/workflows/frontend-ci.yml](</c:/users/qhtm0/desktop/project/comprehensive-design-frontend/.github/workflows/frontend-ci.yml>): github actions ci - [jenkinsfile](</c:/users/qhtm0/desktop/project/comprehensive-design-frontend/jenkinsfile>): jenkins pipeline - [readme.md](</c:/users/qhtm0/desktop/project/comprehensive-design-frontend/readme.md>): ci ?�명 추�? ?�작 ?�름?� ?????�일?�니?? ```text checkout ??frontend ?�동 ??pnpm install --frozen-lockfile ??pnpm lint ??pnpm build ??dist artifact 보�? ``` github actions??`main`, `develop` 브랜�?push/pr ???�행?�고, ?�동 ?�행??가?�합?�다. jenkins??`pipeline script from scm`?�로 ??repo�??�결?�고 `script path`�?`jenkinsfile`�??�면 ?�니?? jenkins ?�버?�는 node.js 22/corepack???�치?�어 ?�어???�니?? 검�??�료: - `corepack pnpm lint` pass - `corepack pnpm build` pass 참고�?`.omx/state/native-stop-state.json`?� 로컬 ?�행 ?�태 ?�일 변경이??ci ?�업 ?�용과는 별개?�니??",
-        "first_seen_at": "2026-05-27T16:58:37.356Z",
-        "last_seen_at": "2026-05-27T16:58:37.356Z",
+        "fingerprint": "ordinary|`.gitignore`??`.omx/` 추�??�습?�다. 변�??�일: - [.gitignore](</c:/users/qhtm0/desktop/project/comprehensive-design-frontend/.gitignore>)",
+        "first_seen_at": "2026-05-27T17:00:07.543Z",
+        "last_seen_at": "2026-05-27T17:00:07.543Z",
         "repeat_count": 1,
-        "last_turn_id": "019e6a5e-9030-72f1-aac6-3fb3c9043510",
+        "last_turn_id": "019e6a60-cd94-7751-9592-e259bf755bac",
         "last_thread_id": null
       }
     }

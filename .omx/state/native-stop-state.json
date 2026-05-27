@@ -19,6 +19,26 @@
         "last_turn_id": "019e6a48-4cf6-75b1-b4e7-877c10a67d7b",
         "last_thread_id": null
       }
+    },
+    "019e6a58-1277-7010-bf77-714291abe031": {
+      "ordinary_no_progress_guard": {
+        "fingerprint": "ordinary|{\"title\":\"?�론???�요??것만 ?�리\"}",
+        "first_seen_at": "2026-05-27T16:50:22.658Z",
+        "last_seen_at": "2026-05-27T16:50:22.658Z",
+        "repeat_count": 1,
+        "last_turn_id": "019e6a58-12b1-7c61-85ae-23a793fb5408",
+        "last_thread_id": null
+      }
+    },
+    "019e6a57-c618-7da1-8b29-a2eaac6cc36a": {
+      "ordinary_no_progress_guard": {
+        "fingerprint": "ordinary|?�리 ?�료?�습?�다. ?�론?�에 ?�요??것만 ?�기?�록 `backend/`?� `k8s/`�??�거?�고, [docker-compose.yml](</c:/users/qhtm0/desktop/project/comprehensive-design-frontend/docker-compose.yml>)?� ?�론??컨테?�너�??�행?�도�?축소?�습?�다. 루트 [readme.md](</c:/users/qhtm0/desktop/project/comprehensive-design-frontend/readme.md>)?� [frontend/readme.md](</c:/users/qhtm0/desktop/project/comprehensive-design-frontend/frontend/readme.md>)???�론???�용 ?�명?�로 ?�시 ?�리?�습?�다. 검증도 ?�과?�습?�다: - `corepack pnpm lint` pass - `corepack pnpm build` pass - `docker compose config --quiet` pass - 백엔??k8s ?�여 참조 검??pass 참고�?`.omx` ?��????�태 ?�일?��? ?�업 �??�동 변경된 기존 로컬 ?�태??건드리�? ?�았?�니??",
+        "first_seen_at": "2026-05-27T16:53:29.152Z",
+        "last_seen_at": "2026-05-27T16:53:29.152Z",
+        "repeat_count": 1,
+        "last_turn_id": "019e6a58-1279-7cb2-9715-001423ed026d",
+        "last_thread_id": null
+      }
     }
   }
 }

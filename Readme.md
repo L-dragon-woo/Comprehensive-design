@@ -58,6 +58,8 @@ corepack pnpm build
 
 두 파이프라인 모두 `frontend` 디렉터리에서 의존성 설치, 타입 검사, 빌드를 실행합니다. AWS 배포 단계는 추후 배포 대상이 정해진 뒤 추가합니다.
 
+Jenkins Discord 알림을 사용하려면 Jenkins Credentials에 Discord Webhook URL을 Secret text로 등록하고 ID를 `discord-webhook-url`로 지정합니다. 빌드가 끝나면 성공/실패 상태와 빌드 URL이 Discord 채널로 전송됩니다.
+
 ## 참고
 
 - API 연동이 필요한 프론트 계약은 `frontend/apiList.md`에 정리되어 있습니다.

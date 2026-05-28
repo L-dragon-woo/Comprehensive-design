@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { CheckCircle2, MapPin, Navigation, Phone, Search, Send } from "lucide-vue-next"
-import { computed, onMounted, ref } from "vue"
+import { computed, nextTick, onMounted, ref, watch } from "vue"
 import AppHeader from "@/components/AppHeader.vue"
 import BaseButton from "@/components/BaseButton.vue"
 import BottomNav from "@/components/BottomNav.vue"
@@ -9,6 +9,12 @@ import { saveHospitalApplication } from "@/lib/skinai"
 
 type Hospital = { id: string; name: string; roadAddress: string; address: string; phone: string; distance: string; x: string; y: string; placeUrl: string }
 
+declare global {
+  interface Window {
+    kakao?: any
+  }
+}
+
 const hospitals = ref<Hospital[]>([])
 const query = ref("피부과")
 const selectedHospitalId = ref("")
@@ -16,7 +22,13 @@ const loading = ref(false)
 const error = ref("")
 const submittedHospitalName = ref("")
 const coords = ref<{ x: string; y: string } | null>(null)
-const selectedHospital = computed(() => hospitals.value.find((hospital) => hospital.id === selectedHospitalId.value) || hospitals.value[0])
+const kakaoMapAppKey = import.meta.env.VITE_KAKAO_MAP_APP_KEY || ""
+const kakaoMapContainer = ref<HTMLElement | null>(null)
+const kakaoMapError = ref("")
+let kakaoMap: any = null
+let kakaoMarkers: any[] = []
+let kakaoMapSdkPromise: Promise<any> | null = null
+const selectedHospital = computed(() => hospitals.value.find((hospital) => hospital.id === selectedHospitalId.value) || null)
 const mappedHospitals = computed(() =>
   hospitals.value
     .map((hospital) => {
@@ -33,49 +45,70 @@ const selectedHospitalLocation = computed(() => {
   if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null
   return { lat, lng }
 })
-const hospitalMapBounds = computed(() => {
-  if (!mappedHospitals.value.length) return null
-  const lngs = mappedHospitals.value.map((item) => item.lng)
-  const lats = mappedHospitals.value.map((item) => item.lat)
-  const minLng = Math.min(...lngs)
-  const maxLng = Math.max(...lngs)
-  const minLat = Math.min(...lats)
-  const maxLat = Math.max(...lats)
-  const lngPadding = Math.max((maxLng - minLng) * 0.18, 0.006)
-  const latPadding = Math.max((maxLat - minLat) * 0.18, 0.006)
-  return {
-    minLng: minLng - lngPadding,
-    maxLng: maxLng + lngPadding,
-    minLat: minLat - latPadding,
-    maxLat: maxLat + latPadding,
+const selectedHospitalDirectionsUrl = computed(() => selectedHospital.value?.placeUrl || "#")
+
+function loadKakaoMapSdk() {
+  if (!kakaoMapAppKey) return Promise.reject(new Error("missing-kakao-map-key"))
+  if (window.kakao?.maps) {
+    return new Promise<any>((resolve) => window.kakao?.maps.load(() => resolve(window.kakao?.maps)))
   }
-})
-const hospitalMapUrl = computed(() => {
-  if (!hospitalMapBounds.value) return ""
-  const { minLng, maxLng, minLat, maxLat } = hospitalMapBounds.value
-  const bbox = [minLng, minLat, maxLng, maxLat].join(",")
-  const params = new URLSearchParams({
-    bbox,
-    layer: "mapnik",
+  if (kakaoMapSdkPromise) return kakaoMapSdkPromise
+
+  kakaoMapSdkPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script")
+    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(kakaoMapAppKey)}&autoload=false`
+    script.async = true
+    script.onload = () => {
+      if (!window.kakao?.maps) {
+        reject(new Error("kakao-map-load-failed"))
+        return
+      }
+      window.kakao.maps.load(() => resolve(window.kakao?.maps))
+    }
+    script.onerror = () => reject(new Error("kakao-map-load-failed"))
+    document.head.appendChild(script)
   })
-  return `https://www.openstreetmap.org/export/embed.html?${params}`
-})
-const hospitalMapMarkers = computed(() => {
-  if (!hospitalMapBounds.value) return []
-  const { minLng, maxLng, minLat, maxLat } = hospitalMapBounds.value
-  const lngRange = maxLng - minLng || 1
-  const latRange = maxLat - minLat || 1
-  return mappedHospitals.value.map(({ hospital, lat, lng }) => ({
-    hospital,
-    left: ((lng - minLng) / lngRange) * 100,
-    top: ((maxLat - lat) / latRange) * 100,
-  }))
-})
-const selectedHospitalDirectionsUrl = computed(() => {
-  if (!selectedHospitalLocation.value || !selectedHospital.value) return selectedHospital.value?.placeUrl || "#"
+
+  return kakaoMapSdkPromise
+}
+
+async function renderKakaoMap() {
+  if (!kakaoMapContainer.value || !mappedHospitals.value.length) return
+  kakaoMapError.value = ""
+
+  try {
+    const maps = await loadKakaoMapSdk()
+    const first = selectedHospitalLocation.value || mappedHospitals.value[0]
+    const center = new maps.LatLng(first.lat, first.lng)
+    kakaoMap = new maps.Map(kakaoMapContainer.value, { center, level: 4 })
+    const bounds = new maps.LatLngBounds()
+
+    kakaoMarkers.forEach((marker) => marker.setMap(null))
+    kakaoMarkers = mappedHospitals.value.map(({ hospital, lat, lng }) => {
+      const position = new maps.LatLng(lat, lng)
+      bounds.extend(position)
+      const marker = new maps.Marker({ map: kakaoMap, position, title: hospital.name })
+      maps.event.addListener(marker, "click", () => {
+        selectedHospitalId.value = hospital.id
+      })
+      return marker
+    })
+
+    if (mappedHospitals.value.length > 1) kakaoMap.setBounds(bounds)
+    else kakaoMap.setLevel(3)
+  } catch (e) {
+    kakaoMapError.value =
+      e instanceof Error && e.message === "missing-kakao-map-key"
+        ? "카카오맵 JavaScript 키가 설정되지 않았습니다. frontend/.env에 VITE_KAKAO_MAP_APP_KEY를 추가해 주세요."
+        : "카카오맵을 불러오지 못했습니다."
+  }
+}
+
+function focusSelectedHospitalOnMap() {
+  if (!kakaoMap || !window.kakao?.maps || !selectedHospitalLocation.value) return
   const { lat, lng } = selectedHospitalLocation.value
-  return `https://www.openstreetmap.org/directions?to=${lat},${lng}#map=17/${lat}/${lng}`
-})
+  kakaoMap.panTo(new window.kakao.maps.LatLng(lat, lng))
+}
 
 async function loadHospitals(useLocation = false) {
   loading.value = true
@@ -101,7 +134,8 @@ async function loadHospitals(useLocation = false) {
     const res = await fetch(`/api/hospitals/search?${params}`)
     if (!res.ok) throw new Error(res.status === 503 ? "카카오 REST API 키가 설정되지 않았습니다." : `병원 검색에 실패했습니다. (${res.status})`)
     hospitals.value = await res.json()
-    selectedHospitalId.value = hospitals.value[0]?.id || ""
+    selectedHospitalId.value = ""
+    submittedHospitalName.value = ""
   } catch (e) {
     error.value = e instanceof Error ? e.message : "병원 정보를 불러오지 못했습니다."
   } finally {
@@ -120,6 +154,17 @@ function submitReport() {
     includedItems: ["AI 분석 결과", "추천 시술", "피부 지표"],
   })
 }
+
+watch(
+  mappedHospitals,
+  async () => {
+    await nextTick()
+    renderKakaoMap()
+  },
+  { flush: "post" },
+)
+
+watch(selectedHospitalId, () => focusSelectedHospitalOnMap())
 
 onMounted(() => loadHospitals(true))
 </script>
@@ -159,30 +204,12 @@ onMounted(() => loadHospitals(true))
             <MapPin class="h-5 w-5" />
           </a>
         </div>
-        <div v-if="hospitalMapUrl" class="relative h-80 overflow-hidden border-t border-border bg-muted">
-          <iframe
-            :key="hospitalMapUrl"
-            :src="hospitalMapUrl"
-            title="검색된 병원 위치 지도"
-            class="h-full w-full border-0"
-            loading="lazy"
-            referrerpolicy="no-referrer-when-downgrade"
-          />
-          <button
-            v-for="marker in hospitalMapMarkers"
-            :key="marker.hospital.id"
-            type="button"
-            :class="['absolute z-10 flex -translate-x-1/2 -translate-y-full flex-col items-center transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary/30', selectedHospitalId === marker.hospital.id ? 'scale-110' : '']"
-            :style="{ left: `${marker.left}%`, top: `${marker.top}%` }"
-            :aria-label="`${marker.hospital.name} 상세정보 보기`"
-            @click="selectedHospitalId = marker.hospital.id"
-          >
-            <span :class="['rounded-full p-2 text-primary-foreground shadow-lg ring-4 ring-background', selectedHospitalId === marker.hospital.id ? 'bg-primary' : 'bg-foreground']">
-              <MapPin class="h-5 w-5" />
-            </span>
-            <span class="mt-1 max-w-32 truncate rounded-full bg-background/95 px-2 py-1 text-xs font-semibold text-foreground shadow-sm">{{ marker.hospital.name }}</span>
-          </button>
-          <div v-if="selectedHospital" class="absolute bottom-3 left-3 right-3 z-20 rounded-xl border border-border bg-background/95 p-4 shadow-lg backdrop-blur">
+        <div v-if="mappedHospitals.length" class="relative h-80 overflow-hidden border-t border-border bg-muted">
+          <div ref="kakaoMapContainer" class="h-full w-full" />
+          <div v-if="kakaoMapError" class="absolute inset-0 z-10 flex items-center justify-center bg-background/95 px-6 text-center text-sm text-muted-foreground">
+            {{ kakaoMapError }}
+          </div>
+          <div v-if="selectedHospital && !kakaoMapError" class="absolute bottom-3 left-3 right-3 z-20 rounded-xl border border-border bg-background/95 p-4 shadow-lg backdrop-blur">
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
                 <h4 class="truncate text-sm font-semibold text-foreground">{{ selectedHospital.name }}</h4>
@@ -201,21 +228,9 @@ onMounted(() => loadHospitals(true))
       </div>
     </section>
 
-    <section class="pb-4">
+    <section v-if="loading || (!loading && hospitals.length === 0)" class="pb-4">
       <div v-if="loading" class="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">검색 중...</div>
-      <div v-else class="space-y-3">
-        <button v-for="hospital in hospitals" :key="hospital.id" :class="['w-full rounded-2xl border bg-card p-5 text-left shadow-sm transition-all', selectedHospitalId === hospital.id ? 'border-primary ring-2 ring-primary/15' : 'border-border hover:border-primary/30']" @click="selectedHospitalId = hospital.id">
-          <div class="mb-3 flex items-start justify-between gap-3">
-            <div>
-              <h4 class="text-base font-semibold text-foreground">{{ hospital.name }}</h4>
-              <p class="mt-1 text-sm text-muted-foreground">{{ hospital.roadAddress || hospital.address }}</p>
-            </div>
-            <span v-if="hospital.distance" class="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">{{ hospital.distance }}m</span>
-          </div>
-          <p class="text-sm text-muted-foreground">{{ hospital.phone || "전화번호 없음" }}</p>
-        </button>
-      </div>
-      <div v-if="!loading && hospitals.length === 0" class="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">검색 결과가 없습니다.</div>
+      <div v-else class="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">검색 결과가 없습니다.</div>
     </section>
 
     <section v-if="selectedHospital" class="space-y-3 py-6">

@@ -37,7 +37,7 @@ export function clearAuth() {
 }
 
 async function readErrorReason(res: Response) {
-  const fallback = res.statusText || "request failed"
+  const fallback = `${res.status} ${res.statusText || "request failed"}`
   const contentType = res.headers.get("content-type") || ""
 
   try {
@@ -56,6 +56,9 @@ async function readErrorReason(res: Response) {
 
 function authErrorMessage(reason: string, fallback: string) {
   const normalized = reason.toLowerCase()
+  if (normalized.includes("database is unavailable")) return "데이터베이스에 연결할 수 없어 회원가입을 완료하지 못했습니다."
+  if (normalized.includes("503") || normalized.includes("service unavailable")) return "서버가 준비되지 않아 회원가입을 완료하지 못했습니다."
+  if (normalized.includes("500") || normalized.includes("internal server error")) return "서버 오류로 회원가입을 완료하지 못했습니다. 백엔드와 DB 상태를 확인해 주세요."
   if (normalized.includes("username must be a valid email")) return "이메일 형식으로 입력해 주세요."
   if (normalized.includes("username already exists")) return "이미 사용 중인 아이디입니다."
   if (normalized.includes("username is required")) return "아이디를 입력해 주세요."
@@ -63,7 +66,7 @@ function authErrorMessage(reason: string, fallback: string) {
   if (normalized.includes("password must be 4-100")) return "비밀번호는 4-100자로 입력해 주세요."
   if (normalized.includes("displayname must be 40")) return "이름은 40자 이하로 입력해 주세요."
   if (normalized.includes("invalid credentials")) return "아이디 또는 비밀번호를 확인해 주세요."
-  return fallback
+  return reason.trim() || fallback
 }
 
 export async function login(username: string, password: string) {

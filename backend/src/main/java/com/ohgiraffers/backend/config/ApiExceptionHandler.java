@@ -2,6 +2,8 @@ package com.ohgiraffers.backend.config;
 
 import java.util.Map;
 
+import org.springframework.dao.DataAccessException;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -20,6 +22,16 @@ public class ApiExceptionHandler {
                 .body(Map.of(
                         "status", e.getStatusCode().value(),
                         "message", message
+                ));
+    }
+
+    @ExceptionHandler(DataAccessException.class)
+    public ResponseEntity<Map<String, Object>> handleDataAccessException() {
+        return ResponseEntity
+                .status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(Map.of(
+                        "status", HttpStatus.SERVICE_UNAVAILABLE.value(),
+                        "message", "database is unavailable"
                 ));
     }
 }

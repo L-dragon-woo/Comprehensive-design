@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Eye, EyeOff } from "lucide-vue-next"
 import { computed, ref } from "vue"
 import { useRoute, useRouter } from "vue-router"
 import BaseButton from "@/components/BaseButton.vue"
@@ -15,6 +16,8 @@ const error = ref("")
 const loading = ref(false)
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const isRegister = computed(() => mode.value === "register")
+const showPassword = ref(false)
+const showPasswordConfirm = ref(false)
 
 const title = computed(() => (mode.value === "login" ? "SkinAI 로그인" : "SkinAI 회원가입"))
 const submitLabel = computed(() => {
@@ -115,24 +118,46 @@ async function submit() {
 
       <label class="mb-3 block">
         <span class="mb-1 block text-sm font-medium">비밀번호</span>
-        <input
-          v-model="password"
-          type="password"
-          class="h-12 w-full rounded-lg bg-input px-4 focus:outline-none focus:ring-2 focus:ring-primary/20"
-          :autocomplete="mode === 'login' ? 'current-password' : 'new-password'"
-          required
-        />
+        <div class="relative">
+          <input
+            v-model="password"
+            :type="showPassword ? 'text' : 'password'"
+            class="h-12 w-full rounded-lg bg-input px-4 pr-12 focus:outline-none focus:ring-2 focus:ring-primary/20"
+            :autocomplete="mode === 'login' ? 'current-password' : 'new-password'"
+            required
+          />
+          <button
+            type="button"
+            class="absolute right-3 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+            :aria-label="showPassword ? '비밀번호 숨기기' : '비밀번호 보기'"
+            @click="showPassword = !showPassword"
+          >
+            <EyeOff v-if="showPassword" class="h-5 w-5" />
+            <Eye v-else class="h-5 w-5" />
+          </button>
+        </div>
       </label>
 
       <label v-show="isRegister" class="mb-4 block">
         <span class="mb-1 block text-sm font-medium">비밀번호 확인</span>
-        <input
-          v-model="passwordConfirm"
-          type="password"
-          class="h-12 w-full rounded-lg bg-input px-4 focus:outline-none focus:ring-2 focus:ring-primary/20"
-          autocomplete="new-password"
-          :required="isRegister"
-        />
+        <div class="relative">
+          <input
+            v-model="passwordConfirm"
+            :type="showPasswordConfirm ? 'text' : 'password'"
+            class="h-12 w-full rounded-lg bg-input px-4 pr-12 focus:outline-none focus:ring-2 focus:ring-primary/20"
+            autocomplete="new-password"
+            :required="isRegister"
+          />
+          <button
+            type="button"
+            class="absolute right-3 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+            :aria-label="showPasswordConfirm ? '비밀번호 확인 숨기기' : '비밀번호 확인 보기'"
+            @click="showPasswordConfirm = !showPasswordConfirm"
+          >
+            <EyeOff v-if="showPasswordConfirm" class="h-5 w-5" />
+            <Eye v-else class="h-5 w-5" />
+          </button>
+        </div>
       </label>
 
       <p v-if="error" class="mb-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{{ error }}</p>
@@ -141,3 +166,10 @@ async function submit() {
     </form>
   </main>
 </template>
+
+<style scoped>
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}
+</style>

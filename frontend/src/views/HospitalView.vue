@@ -70,12 +70,23 @@ function loadKakaoMapSdk() {
     script.async = true
     script.onload = () => {
       if (!window.kakao?.maps) {
+        kakaoMapSdkPromise = null
         reject(new Error("kakao-map-load-failed"))
         return
       }
-      window.kakao.maps.load(() => resolve(window.kakao?.maps))
+      window.kakao.maps.load(() => {
+        if (!window.kakao?.maps) {
+          kakaoMapSdkPromise = null
+          reject(new Error("kakao-map-load-failed"))
+          return
+        }
+        resolve(window.kakao.maps)
+      })
     }
-    script.onerror = () => reject(new Error("kakao-map-load-failed"))
+    script.onerror = () => {
+      kakaoMapSdkPromise = null
+      reject(new Error("kakao-map-load-failed"))
+    }
     document.head.appendChild(script)
   })
 

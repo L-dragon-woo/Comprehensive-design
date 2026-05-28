@@ -17,6 +17,15 @@ const error = ref("")
 const submittedHospitalName = ref("")
 const coords = ref<{ x: string; y: string } | null>(null)
 const selectedHospital = computed(() => hospitals.value.find((hospital) => hospital.id === selectedHospitalId.value) || hospitals.value[0])
+const mappedHospitals = computed(() =>
+  hospitals.value
+    .map((hospital) => {
+      const lng = Number(hospital.x)
+      const lat = Number(hospital.y)
+      return Number.isFinite(lng) && Number.isFinite(lat) ? { hospital, lat, lng } : null
+    })
+    .filter((item): item is { hospital: Hospital; lat: number; lng: number } => Boolean(item)),
+)
 const selectedHospitalLocation = computed(() => {
   if (!selectedHospital.value) return null
   const lng = Number(selectedHospital.value.x)
@@ -24,12 +33,43 @@ const selectedHospitalLocation = computed(() => {
   if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null
   return { lat, lng }
 })
-const selectedHospitalMapUrl = computed(() => {
-  if (!selectedHospitalLocation.value) return ""
-  const { lat, lng } = selectedHospitalLocation.value
-  const span = 0.006
-  const bbox = [lng - span, lat - span, lng + span, lat + span].join(",")
-  return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat},${lng}`
+const hospitalMapBounds = computed(() => {
+  if (!mappedHospitals.value.length) return null
+  const lngs = mappedHospitals.value.map((item) => item.lng)
+  const lats = mappedHospitals.value.map((item) => item.lat)
+  const minLng = Math.min(...lngs)
+  const maxLng = Math.max(...lngs)
+  const minLat = Math.min(...lats)
+  const maxLat = Math.max(...lats)
+  const lngPadding = Math.max((maxLng - minLng) * 0.18, 0.006)
+  const latPadding = Math.max((maxLat - minLat) * 0.18, 0.006)
+  return {
+    minLng: minLng - lngPadding,
+    maxLng: maxLng + lngPadding,
+    minLat: minLat - latPadding,
+    maxLat: maxLat + latPadding,
+  }
+})
+const hospitalMapUrl = computed(() => {
+  if (!hospitalMapBounds.value) return ""
+  const { minLng, maxLng, minLat, maxLat } = hospitalMapBounds.value
+  const bbox = [minLng, minLat, maxLng, maxLat].join(",")
+  const params = new URLSearchParams({
+    bbox,
+    layer: "mapnik",
+  })
+  return `https://www.openstreetmap.org/export/embed.html?${params}`
+})
+const hospitalMapMarkers = computed(() => {
+  if (!hospitalMapBounds.value) return []
+  const { minLng, maxLng, minLat, maxLat } = hospitalMapBounds.value
+  const lngRange = maxLng - minLng || 1
+  const latRange = maxLat - minLat || 1
+  return mappedHospitals.value.map(({ hospital, lat, lng }) => ({
+    hospital,
+    left: ((lng - minLng) / lngRange) * 100,
+    top: ((maxLat - lat) / latRange) * 100,
+  }))
 })
 const selectedHospitalDirectionsUrl = computed(() => {
   if (!selectedHospitalLocation.value || !selectedHospital.value) return selectedHospital.value?.placeUrl || "#"
@@ -107,28 +147,57 @@ onMounted(() => loadHospitals(true))
 
     <p v-if="error" class="mb-4 rounded-xl bg-destructive/10 p-4 text-sm text-destructive">{{ error }}</p>
 
-    <section v-if="selectedHospital" class="pb-4">
+    <section v-if="hospitals.length" class="pb-4">
       <div class="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
         <div class="flex items-start justify-between gap-3 p-5">
           <div>
-            <p class="text-xs font-semibold text-primary">선택한 병원 위치</p>
-            <h3 class="mt-1 text-base font-semibold text-foreground">{{ selectedHospital.name }}</h3>
-            <p class="mt-1 text-sm text-muted-foreground">{{ selectedHospital.roadAddress || selectedHospital.address }}</p>
+            <p class="text-xs font-semibold text-primary">검색된 병원 위치</p>
+            <h3 class="mt-1 text-base font-semibold text-foreground">{{ selectedHospital?.name || "병원을 선택해 주세요" }}</h3>
+            <p class="mt-1 text-sm text-muted-foreground">{{ selectedHospital ? selectedHospital.roadAddress || selectedHospital.address : "지도 마커를 누르면 상세정보가 표시됩니다." }}</p>
           </div>
-          <a :href="selectedHospitalDirectionsUrl" target="_blank" rel="noreferrer" class="shrink-0 rounded-full bg-primary/10 p-2 text-primary" aria-label="지도에서 열기">
+          <a v-if="selectedHospital" :href="selectedHospitalDirectionsUrl" target="_blank" rel="noreferrer" class="shrink-0 rounded-full bg-primary/10 p-2 text-primary" aria-label="지도에서 열기">
             <MapPin class="h-5 w-5" />
           </a>
         </div>
-        <iframe
-          v-if="selectedHospitalMapUrl"
-          :key="selectedHospital.id"
-          :src="selectedHospitalMapUrl"
-          :title="`${selectedHospital.name} 위치 지도`"
-          class="h-64 w-full border-0"
-          loading="lazy"
-          referrerpolicy="no-referrer-when-downgrade"
-        />
-        <div v-else class="flex h-40 items-center justify-center border-t border-border px-5 text-center text-sm text-muted-foreground">이 병원은 지도에 표시할 좌표가 없습니다.</div>
+        <div v-if="hospitalMapUrl" class="relative h-80 overflow-hidden border-t border-border bg-muted">
+          <iframe
+            :key="hospitalMapUrl"
+            :src="hospitalMapUrl"
+            title="검색된 병원 위치 지도"
+            class="h-full w-full border-0"
+            loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade"
+          />
+          <button
+            v-for="marker in hospitalMapMarkers"
+            :key="marker.hospital.id"
+            type="button"
+            :class="['absolute z-10 flex -translate-x-1/2 -translate-y-full flex-col items-center transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary/30', selectedHospitalId === marker.hospital.id ? 'scale-110' : '']"
+            :style="{ left: `${marker.left}%`, top: `${marker.top}%` }"
+            :aria-label="`${marker.hospital.name} 상세정보 보기`"
+            @click="selectedHospitalId = marker.hospital.id"
+          >
+            <span :class="['rounded-full p-2 text-primary-foreground shadow-lg ring-4 ring-background', selectedHospitalId === marker.hospital.id ? 'bg-primary' : 'bg-foreground']">
+              <MapPin class="h-5 w-5" />
+            </span>
+            <span class="mt-1 max-w-32 truncate rounded-full bg-background/95 px-2 py-1 text-xs font-semibold text-foreground shadow-sm">{{ marker.hospital.name }}</span>
+          </button>
+          <div v-if="selectedHospital" class="absolute bottom-3 left-3 right-3 z-20 rounded-xl border border-border bg-background/95 p-4 shadow-lg backdrop-blur">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <h4 class="truncate text-sm font-semibold text-foreground">{{ selectedHospital.name }}</h4>
+                <p class="mt-1 line-clamp-2 text-xs text-muted-foreground">{{ selectedHospital.roadAddress || selectedHospital.address }}</p>
+                <p class="mt-2 text-xs text-muted-foreground">{{ selectedHospital.phone || "전화번호 없음" }}</p>
+              </div>
+              <span v-if="selectedHospital.distance" class="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">{{ selectedHospital.distance }}m</span>
+            </div>
+            <a :href="selectedHospitalDirectionsUrl" target="_blank" rel="noreferrer" class="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary">
+              <MapPin class="h-3.5 w-3.5" />
+              지도에서 열기
+            </a>
+          </div>
+        </div>
+        <div v-else class="flex h-40 items-center justify-center border-t border-border px-5 text-center text-sm text-muted-foreground">이 병원들은 지도에 표시할 좌표가 없습니다.</div>
       </div>
     </section>
 

@@ -16,6 +16,8 @@ const error = ref("")
 const loading = ref(false)
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const isRegister = computed(() => mode.value === "register")
+const usernameInputType = computed(() => (isRegister.value ? "email" : "text"))
+const usernameAutocomplete = computed(() => (isRegister.value ? "email" : "username"))
 const showPassword = ref(false)
 const showPasswordConfirm = ref(false)
 
@@ -98,9 +100,9 @@ async function submit() {
         <span class="mb-1 block text-sm font-medium">이메일</span>
         <input
           v-model="username"
-          type="email"
+          :type="usernameInputType"
           class="h-12 w-full rounded-lg bg-input px-4 focus:outline-none focus:ring-2 focus:ring-primary/20"
-          autocomplete="email"
+          :autocomplete="usernameAutocomplete"
           required
         />
       </label>

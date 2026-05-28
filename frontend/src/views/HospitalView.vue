@@ -45,7 +45,17 @@ const selectedHospitalLocation = computed(() => {
   if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null
   return { lat, lng }
 })
-const selectedHospitalDirectionsUrl = computed(() => selectedHospital.value?.placeUrl || "#")
+const selectedHospitalDirectionsUrl = computed(() => {
+  const placeUrl = selectedHospital.value?.placeUrl?.trim()
+  if (!placeUrl || !/^https?:\/\//i.test(placeUrl)) return "#"
+
+  try {
+    const url = new URL(placeUrl)
+    return url.protocol === "http:" || url.protocol === "https:" ? placeUrl : "#"
+  } catch {
+    return "#"
+  }
+})
 
 function loadKakaoMapSdk() {
   if (!kakaoMapAppKey) return Promise.reject(new Error("missing-kakao-map-key"))

@@ -7,7 +7,7 @@ import BottomNav from "@/components/BottomNav.vue"
 import PageContainer from "@/components/PageContainer.vue"
 import { saveHospitalApplication } from "@/lib/skinai"
 
-type Hospital = { id: string; name: string; roadAddress: string; address: string; phone: string; distance: string; placeUrl: string }
+type Hospital = { id: string; name: string; roadAddress: string; address: string; phone: string; distance: string; x: string; y: string; placeUrl: string }
 
 const hospitals = ref<Hospital[]>([])
 const query = ref("피부과")
@@ -17,6 +17,25 @@ const error = ref("")
 const submittedHospitalName = ref("")
 const coords = ref<{ x: string; y: string } | null>(null)
 const selectedHospital = computed(() => hospitals.value.find((hospital) => hospital.id === selectedHospitalId.value) || hospitals.value[0])
+const selectedHospitalLocation = computed(() => {
+  if (!selectedHospital.value) return null
+  const lng = Number(selectedHospital.value.x)
+  const lat = Number(selectedHospital.value.y)
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null
+  return { lat, lng }
+})
+const selectedHospitalMapUrl = computed(() => {
+  if (!selectedHospitalLocation.value) return ""
+  const { lat, lng } = selectedHospitalLocation.value
+  const span = 0.006
+  const bbox = [lng - span, lat - span, lng + span, lat + span].join(",")
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat},${lng}`
+})
+const selectedHospitalDirectionsUrl = computed(() => {
+  if (!selectedHospitalLocation.value || !selectedHospital.value) return selectedHospital.value?.placeUrl || "#"
+  const { lat, lng } = selectedHospitalLocation.value
+  return `https://www.openstreetmap.org/directions?to=${lat},${lng}#map=17/${lat}/${lng}`
+})
 
 async function loadHospitals(useLocation = false) {
   loading.value = true
@@ -87,6 +106,31 @@ onMounted(() => loadHospitals(true))
     </section>
 
     <p v-if="error" class="mb-4 rounded-xl bg-destructive/10 p-4 text-sm text-destructive">{{ error }}</p>
+
+    <section v-if="selectedHospital" class="pb-4">
+      <div class="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        <div class="flex items-start justify-between gap-3 p-5">
+          <div>
+            <p class="text-xs font-semibold text-primary">선택한 병원 위치</p>
+            <h3 class="mt-1 text-base font-semibold text-foreground">{{ selectedHospital.name }}</h3>
+            <p class="mt-1 text-sm text-muted-foreground">{{ selectedHospital.roadAddress || selectedHospital.address }}</p>
+          </div>
+          <a :href="selectedHospitalDirectionsUrl" target="_blank" rel="noreferrer" class="shrink-0 rounded-full bg-primary/10 p-2 text-primary" aria-label="지도에서 열기">
+            <MapPin class="h-5 w-5" />
+          </a>
+        </div>
+        <iframe
+          v-if="selectedHospitalMapUrl"
+          :key="selectedHospital.id"
+          :src="selectedHospitalMapUrl"
+          :title="`${selectedHospital.name} 위치 지도`"
+          class="h-64 w-full border-0"
+          loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade"
+        />
+        <div v-else class="flex h-40 items-center justify-center border-t border-border px-5 text-center text-sm text-muted-foreground">이 병원은 지도에 표시할 좌표가 없습니다.</div>
+      </div>
+    </section>
 
     <section class="pb-4">
       <div v-if="loading" class="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">검색 중...</div>

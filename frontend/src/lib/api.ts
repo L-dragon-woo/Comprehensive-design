@@ -36,13 +36,43 @@ export function clearAuth() {
   window.dispatchEvent(new CustomEvent("skinai:auth-updated"))
 }
 
+async function readErrorReason(res: Response) {
+  const fallback = res.statusText || "request failed"
+  const contentType = res.headers.get("content-type") || ""
+
+  try {
+    if (contentType.includes("application/json") || contentType.includes("application/problem+json")) {
+      const data = (await res.json()) as Record<string, unknown>
+      const value = data.detail || data.message || data.error || data.title
+      return typeof value === "string" && value.trim() ? value : fallback
+    }
+
+    const text = await res.text()
+    return text.trim() || fallback
+  } catch {
+    return fallback
+  }
+}
+
+function authErrorMessage(reason: string, fallback: string) {
+  const normalized = reason.toLowerCase()
+  if (normalized.includes("username must be a valid email")) return "이메일 형식으로 입력해 주세요."
+  if (normalized.includes("username already exists")) return "이미 사용 중인 아이디입니다."
+  if (normalized.includes("username is required")) return "아이디를 입력해 주세요."
+  if (normalized.includes("username must be 3-30")) return "아이디는 영문, 숫자, 점, 밑줄, 하이픈으로 3-30자 입력해 주세요."
+  if (normalized.includes("password must be 4-100")) return "비밀번호는 4-100자로 입력해 주세요."
+  if (normalized.includes("displayname must be 40")) return "이름은 40자 이하로 입력해 주세요."
+  if (normalized.includes("invalid credentials")) return "아이디 또는 비밀번호를 확인해 주세요."
+  return fallback
+}
+
 export async function login(username: string, password: string) {
   const res = await fetch("/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
   })
-  if (!res.ok) throw new Error("아이디 또는 비밀번호를 확인해 주세요.")
+  if (!res.ok) throw new Error(authErrorMessage(await readErrorReason(res), "아이디 또는 비밀번호를 확인해 주세요."))
   const data = (await res.json()) as AuthResponse
   saveAuth(data)
   return data
@@ -54,10 +84,7 @@ export async function register(username: string, password: string, displayName: 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password, displayName }),
   })
-  if (!res.ok) {
-    if (res.status === 409) throw new Error("이미 사용 중인 아이디입니다.")
-    throw new Error("회원가입 정보를 확인해 주세요.")
-  }
+  if (!res.ok) throw new Error(authErrorMessage(await readErrorReason(res), "회원가입 정보를 확인해 주세요."))
   const data = (await res.json()) as AuthResponse
   saveAuth(data)
   return data

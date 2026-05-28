@@ -59,8 +59,8 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "username is required");
         }
         String normalized = username.trim().toLowerCase(Locale.ROOT);
-        if (!normalized.matches("^[a-z0-9._-]{3,30}$")) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "username must be 3-30 characters and contain only letters, numbers, dot, underscore, or hyphen");
+        if (!normalized.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$") || normalized.length() > 254) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "username must be a valid email address");
         }
         return normalized;
     }

@@ -13,6 +13,7 @@ const password = ref("")
 const passwordConfirm = ref("")
 const error = ref("")
 const loading = ref(false)
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const title = computed(() => (mode.value === "login" ? "SkinAI 로그인" : "SkinAI 회원가입"))
 const submitLabel = computed(() => {
@@ -26,8 +27,8 @@ function switchMode(nextMode: "login" | "register") {
 }
 
 function validateRegister() {
-  if (!/^[a-zA-Z0-9._-]{3,30}$/.test(username.value.trim())) {
-    error.value = "아이디는 영문, 숫자, 점, 밑줄, 하이픈으로 3-30자 입력해 주세요."
+  if (!emailPattern.test(username.value.trim())) {
+    error.value = "이메일 형식으로 입력해 주세요."
     return false
   }
   if (password.value.length < 4) {
@@ -90,11 +91,12 @@ async function submit() {
       </div>
 
       <label class="mb-3 block">
-        <span class="mb-1 block text-sm font-medium">아이디</span>
+        <span class="mb-1 block text-sm font-medium">이메일</span>
         <input
           v-model="username"
+          type="email"
           class="h-12 w-full rounded-lg bg-input px-4 focus:outline-none focus:ring-2 focus:ring-primary/20"
-          autocomplete="username"
+          autocomplete="email"
           required
         />
       </label>

@@ -14,6 +14,7 @@ const passwordConfirm = ref("")
 const error = ref("")
 const loading = ref(false)
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const isRegister = computed(() => mode.value === "register")
 
 const title = computed(() => (mode.value === "login" ? "SkinAI 로그인" : "SkinAI 회원가입"))
 const submitLabel = computed(() => {
@@ -44,10 +45,10 @@ function validateRegister() {
 
 async function submit() {
   error.value = ""
-  if (mode.value === "register" && !validateRegister()) return
+  if (isRegister.value && !validateRegister()) return
   loading.value = true
   try {
-    if (mode.value === "login") {
+    if (!isRegister.value) {
       await login(username.value, password.value)
     } else {
       await register(username.value, password.value, displayName.value)
@@ -101,7 +102,7 @@ async function submit() {
         />
       </label>
 
-      <label v-if="mode === 'register'" class="mb-3 block">
+      <label v-show="isRegister" class="mb-3 block">
         <span class="mb-1 block text-sm font-medium">이름</span>
         <input
           v-model="displayName"
@@ -123,14 +124,14 @@ async function submit() {
         />
       </label>
 
-      <label v-if="mode === 'register'" class="mb-4 block">
+      <label v-show="isRegister" class="mb-4 block">
         <span class="mb-1 block text-sm font-medium">비밀번호 확인</span>
         <input
           v-model="passwordConfirm"
           type="password"
           class="h-12 w-full rounded-lg bg-input px-4 focus:outline-none focus:ring-2 focus:ring-primary/20"
           autocomplete="new-password"
-          required
+          :required="isRegister"
         />
       </label>
 

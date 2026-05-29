@@ -84,6 +84,9 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    env_file:
+      - path: ./frontend/.env
+        required: false
     environment:
       VITE_API_PROXY_TARGET: http://backend:8080
     ports:

@@ -1,20 +1,53 @@
 <script setup lang="ts">
 import { CircleDot, Droplets, Home, MapPin, MessageCircle, Sparkles, Stethoscope, Sun } from "lucide-vue-next"
+import { computed, onMounted, ref } from "vue"
+import { useRoute } from "vue-router"
 import AnalysisCard from "@/components/AnalysisCard.vue"
 import AppHeader from "@/components/AppHeader.vue"
 import BaseButton from "@/components/BaseButton.vue"
 import PageContainer from "@/components/PageContainer.vue"
 import ScoreRing from "@/components/ScoreRing.vue"
-import { getLastAnalysis } from "@/lib/skinai"
+import { getMyAnalysis } from "@/lib/api"
+import { getLastAnalysis, normalizeAnalysisResponse, type AnalysisResult } from "@/lib/skinai"
 
-const result = getLastAnalysis()
+const route = useRoute()
+const result = ref<AnalysisResult | null>(null)
+const loading = ref(false)
+const error = ref("")
 const icons = [Droplets, Sun, CircleDot]
+const analysisId = computed(() => (typeof route.params.id === "string" ? route.params.id : ""))
+
+onMounted(async () => {
+  if (!analysisId.value) {
+    result.value = getLastAnalysis()
+    return
+  }
+
+  loading.value = true
+  try {
+    const saved = await getMyAnalysis(analysisId.value)
+    result.value = normalizeAnalysisResponse(saved.analysis)
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "분석 결과를 불러오지 못했습니다."
+  } finally {
+    loading.value = false
+  }
+})
 </script>
 
 <template>
   <AppHeader title="분석 결과" show-back />
   <PageContainer :has-bottom-nav="false">
-    <section v-if="!result" class="py-20 text-center">
+    <section v-if="loading" class="py-20 text-center text-sm text-muted-foreground">불러오는 중...</section>
+
+    <section v-else-if="error" class="py-20 text-center">
+      <Sparkles class="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+      <h2 class="mb-2 text-lg font-semibold">분석 결과를 불러오지 못했습니다</h2>
+      <p class="mb-6 text-sm text-muted-foreground">{{ error }}</p>
+      <RouterLink to="/history"><BaseButton>기록으로 돌아가기</BaseButton></RouterLink>
+    </section>
+
+    <section v-else-if="!result" class="py-20 text-center">
       <Sparkles class="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
       <h2 class="mb-2 text-lg font-semibold">분석 결과가 없습니다</h2>
       <p class="mb-6 text-sm text-muted-foreground">피부 사진을 촬영하고 분석을 시작해 주세요.</p>

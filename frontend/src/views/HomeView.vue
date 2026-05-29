@@ -7,7 +7,9 @@ import BottomNav from "@/components/BottomNav.vue"
 import FeatureCard from "@/components/FeatureCard.vue"
 import PageContainer from "@/components/PageContainer.vue"
 import ScoreRing from "@/components/ScoreRing.vue"
+import { getMyAnalyses } from "@/lib/api"
 import { formatApplicationDate, getHospitalApplications, getLastAnalysis, type HospitalApplication } from "@/lib/skinai"
+import { normalizeAnalysisResponse } from "@/lib/skinai"
 
 const applications = ref<HospitalApplication[]>([])
 const analysis = ref(getLastAnalysis())
@@ -18,8 +20,14 @@ function refresh() {
   analysis.value = getLastAnalysis()
 }
 
-onMounted(() => {
+onMounted(async () => {
   refresh()
+  try {
+    const latest = (await getMyAnalyses())[0]
+    if (latest) analysis.value = normalizeAnalysisResponse(latest.analysis)
+  } catch {
+    analysis.value = getLastAnalysis()
+  }
   window.addEventListener("skinai:hospital-application-updated", refresh)
   window.addEventListener("skinai:analysis-updated", refresh)
   window.addEventListener("storage", refresh)

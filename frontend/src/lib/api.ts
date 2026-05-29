@@ -11,6 +11,7 @@ export type UserProfile = {
 }
 export type AuthResponse = { accessToken: string; refreshToken: string; expiresIn: number; tokenType: string; user: UserProfile }
 export type ProfilePayload = Omit<UserProfile, "username">
+export type SavedAnalysis = { analysisId: string; createdAt: string; analysis: unknown }
 
 const accessKey = "skinai:access-token"
 const refreshKey = "skinai:refresh-token"
@@ -124,6 +125,18 @@ export async function updateMyProfile(profile: ProfilePayload) {
   localStorage.setItem(userKey, JSON.stringify(data))
   window.dispatchEvent(new CustomEvent("skinai:auth-updated"))
   return data
+}
+
+export async function getMyAnalyses() {
+  const res = await apiFetch("/api/analyses")
+  if (!res.ok) throw new Error(await readErrorReason(res))
+  return (await res.json()) as SavedAnalysis[]
+}
+
+export async function getMyAnalysis(id: string) {
+  const res = await apiFetch(`/api/analyses/${encodeURIComponent(id)}`)
+  if (!res.ok) throw new Error(await readErrorReason(res))
+  return (await res.json()) as SavedAnalysis
 }
 
 export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {

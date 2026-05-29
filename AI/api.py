@@ -69,12 +69,16 @@ async def collect_http_metrics(request: Request, call_next):
         return await call_next(request)
 
     start = time.perf_counter()
-    response = await call_next(request)
     route = request.scope.get("route")
     path = getattr(route, "path", request.url.path)
-    REQUEST_COUNT.labels(request.method, path, str(response.status_code)).inc()
-    REQUEST_LATENCY.labels(request.method, path).observe(time.perf_counter() - start)
-    return response
+    status_code = 500
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    finally:
+        REQUEST_COUNT.labels(request.method, path, str(status_code)).inc()
+        REQUEST_LATENCY.labels(request.method, path).observe(time.perf_counter() - start)
 
 
 class ChatRequest(BaseModel):

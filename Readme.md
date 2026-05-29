@@ -29,6 +29,13 @@ Docker Desktop을 먼저 실행한 뒤 아래 명령을 사용합니다.
 cd C:\Users\qhtm0\Desktop\project\Comprehensive-design-frontend
 ```
 
+Grafana 관리자 계정은 실행 환경에서 주입해야 합니다. 비밀번호는 저장소에 커밋하지 않습니다.
+
+```powershell
+$env:GF_SECURITY_ADMIN_USER="admin"
+$env:GF_SECURITY_ADMIN_PASSWORD="<secure-password>"
+```
+
 ```powershell
 docker compose up -d --build
 ```
@@ -52,8 +59,8 @@ docker compose ps
 Grafana 로그인:
 
 ```text
-ID: admin
-PW: team10
+ID: $env:GF_SECURITY_ADMIN_USER 값
+PW: $env:GF_SECURITY_ADMIN_PASSWORD 값
 ```
 
 앱 기본 로그인:

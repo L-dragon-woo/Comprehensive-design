@@ -36,8 +36,6 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PathPatternRequestMatcher.pathPattern("/error")).permitAll()
                         .requestMatchers(PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/actuator/health/**")).permitAll()
-                        .requestMatchers(PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/actuator/info")).permitAll()
-                        .requestMatchers(PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/actuator/prometheus")).permitAll()
                         .requestMatchers(PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/api/ai/health")).permitAll()
                         .requestMatchers(PathPatternRequestMatcher.pathPattern(HttpMethod.POST, "/api/analyses")).permitAll()
                         .requestMatchers(PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/api/hospitals/search")).permitAll()

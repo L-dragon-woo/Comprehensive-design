@@ -4,14 +4,17 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, Form, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 from pydantic import BaseModel
 
 ROOT = Path(__file__).resolve().parent
@@ -34,6 +37,48 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+REQUEST_COUNT = Counter(
+    "ai_http_requests_total",
+    "Total HTTP requests handled by the AI service.",
+    ["method", "path", "status"],
+)
+REQUEST_LATENCY = Histogram(
+    "ai_http_request_duration_seconds",
+    "HTTP request latency for the AI service.",
+    ["method", "path"],
+)
+INFERENCE_COUNT = Counter(
+    "ai_inference_count",
+    "Total AI image inference requests.",
+    ["status"],
+)
+INFERENCE_DURATION = Histogram(
+    "ai_inference_duration_seconds",
+    "AI image inference duration.",
+)
+GPU_UTILIZATION = Gauge(
+    "ai_gpu_utilization_percent",
+    "GPU utilization percentage reported by nvidia-smi. Zero when no GPU is available.",
+)
+
+
+@app.middleware("http")
+async def collect_http_metrics(request: Request, call_next):
+    if request.url.path == "/metrics":
+        return await call_next(request)
+
+    start = time.perf_counter()
+    route = request.scope.get("route")
+    path = getattr(route, "path", request.url.path)
+    status_code = 500
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    finally:
+        REQUEST_COUNT.labels(request.method, path, str(status_code)).inc()
+        REQUEST_LATENCY.labels(request.method, path).observe(time.perf_counter() - start)
 
 
 class ChatRequest(BaseModel):
@@ -208,6 +253,24 @@ def _extract_llm_text(content: Any) -> str:
     return str(content)
 
 
+def _update_gpu_utilization() -> None:
+    try:
+        output = subprocess.check_output(
+            [
+                "nvidia-smi",
+                "--query-gpu=utilization.gpu",
+                "--format=csv,noheader,nounits",
+            ],
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=1,
+        )
+        values = [float(line.strip()) for line in output.splitlines() if line.strip()]
+        GPU_UTILIZATION.set(max(values) if values else 0)
+    except Exception:
+        GPU_UTILIZATION.set(0)
+
+
 def _llm_chat_with_analysis(message: str, analysis: dict[str, Any]) -> str:
     from langchain.chat_models import init_chat_model
     from langchain_core.messages import HumanMessage, SystemMessage
@@ -238,6 +301,12 @@ def _llm_chat_with_analysis(message: str, analysis: dict[str, Any]) -> str:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "ai"}
+
+
+@app.get("/metrics")
+def metrics() -> Response:
+    _update_gpu_utilization()
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -273,7 +342,10 @@ async def analyze(
     image: UploadFile = File(...),
     gender: str = Form("female"),
 ) -> dict[str, Any]:
+    inference_start = time.perf_counter()
     if image.content_type and image.content_type not in {"image/jpeg", "image/png", "image/webp"}:
+        INFERENCE_COUNT.labels("rejected").inc()
+        INFERENCE_DURATION.observe(time.perf_counter() - inference_start)
         return {
             "status": "rejected",
             "message": "Unsupported image type. Upload JPEG, PNG, or WebP.",
@@ -293,11 +365,15 @@ async def analyze(
         result = pipe.predict_single(str(image_path))
         if result:
             status = result.get("status", "completed") if isinstance(result, dict) else "completed"
+            INFERENCE_COUNT.labels(str(status)).inc()
+            INFERENCE_DURATION.observe(time.perf_counter() - inference_start)
             response = {"status": status, "imagePath": str(image_path), "result": result}
             with LAST_ANALYSIS_PATH.open("w", encoding="utf-8") as file:
                 json.dump(response, file, ensure_ascii=False, indent=2)
             return response
     except Exception as exc:
+        INFERENCE_COUNT.labels("fallback").inc()
+        INFERENCE_DURATION.observe(time.perf_counter() - inference_start)
         result = _mock_analysis(gender)
         response = {
             "status": "fallback",
@@ -309,6 +385,8 @@ async def analyze(
             json.dump(response, file, ensure_ascii=False, indent=2)
         return response
 
+    INFERENCE_COUNT.labels("fallback").inc()
+    INFERENCE_DURATION.observe(time.perf_counter() - inference_start)
     response = {"status": "fallback", "imagePath": str(image_path), "result": _mock_analysis(gender)}
     with LAST_ANALYSIS_PATH.open("w", encoding="utf-8") as file:
         json.dump(response, file, ensure_ascii=False, indent=2)

@@ -35,7 +35,9 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PathPatternRequestMatcher.pathPattern("/error")).permitAll()
+                        .requestMatchers(PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/actuator/health/**")).permitAll()
                         .requestMatchers(PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/api/ai/health")).permitAll()
+                        .requestMatchers(PathPatternRequestMatcher.pathPattern(HttpMethod.POST, "/api/analyses")).permitAll()
                         .requestMatchers(PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/api/hospitals/search")).permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthFilter(jwtService), UsernamePasswordAuthenticationFilter.class);

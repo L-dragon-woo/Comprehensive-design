@@ -98,7 +98,7 @@ export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {})
   const token = getAccessToken()
   if (token) headers.set("Authorization", `Bearer ${token}`)
   const res = await fetch(input, { ...init, headers })
-  if (res.status === 401) clearAuth()
+  if (res.status === 401 || res.status === 403) clearAuth()
   return res
 }
 

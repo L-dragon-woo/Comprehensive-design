@@ -22,7 +22,7 @@ const loading = ref(false)
 const error = ref("")
 const submittedHospitalName = ref("")
 const coords = ref<{ x: string; y: string } | null>(null)
-const kakaoMapAppKey = import.meta.env.VITE_KAKAO_MAP_APP_KEY || ""
+const kakaoMapAppKey = import.meta.env.VITE_KAKAO_JAVASCRIPT_KEY || import.meta.env.VITE_KAKAO_MAP_APP_KEY || ""
 const kakaoMapContainer = ref<HTMLElement | null>(null)
 const kakaoMapError = ref("")
 let kakaoMap: any = null
@@ -56,6 +56,10 @@ const selectedHospitalDirectionsUrl = computed(() => {
     return "#"
   }
 })
+const selectedHospitalKakaoSearchUrl = computed(() => {
+  const keyword = selectedHospital.value?.name || query.value || "피부과"
+  return `https://map.kakao.com/link/search/${encodeURIComponent(keyword)}`
+})
 
 function loadKakaoMapSdk() {
   if (!kakaoMapAppKey) return Promise.reject(new Error("missing-kakao-map-key"))
@@ -66,9 +70,15 @@ function loadKakaoMapSdk() {
 
   kakaoMapSdkPromise = new Promise((resolve, reject) => {
     const script = document.createElement("script")
+    const timeoutId = window.setTimeout(() => {
+      kakaoMapSdkPromise = null
+      script.remove()
+      reject(new Error("kakao-map-load-failed"))
+    }, 8000)
     script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(kakaoMapAppKey)}&autoload=false`
     script.async = true
     script.onload = () => {
+      window.clearTimeout(timeoutId)
       if (!window.kakao?.maps) {
         kakaoMapSdkPromise = null
         reject(new Error("kakao-map-load-failed"))
@@ -84,6 +94,7 @@ function loadKakaoMapSdk() {
       })
     }
     script.onerror = () => {
+      window.clearTimeout(timeoutId)
       kakaoMapSdkPromise = null
       reject(new Error("kakao-map-load-failed"))
     }
@@ -121,7 +132,7 @@ async function renderKakaoMap() {
     kakaoMapError.value =
       e instanceof Error && e.message === "missing-kakao-map-key"
         ? "카카오맵 JavaScript 키가 설정되지 않았습니다. frontend/.env에 VITE_KAKAO_MAP_APP_KEY를 추가해 주세요."
-        : "카카오맵을 불러오지 못했습니다."
+        : "카카오맵을 불러오지 못했습니다. 카카오 개발자 콘솔 Web 플랫폼에 http://localhost:5173 도메인이 등록되어 있는지 확인해 주세요."
   }
 }
 
@@ -228,7 +239,12 @@ onMounted(() => loadHospitals(true))
         <div v-if="mappedHospitals.length" class="relative h-80 overflow-hidden border-t border-border bg-muted">
           <div ref="kakaoMapContainer" class="h-full w-full" />
           <div v-if="kakaoMapError" class="absolute inset-0 z-10 flex items-center justify-center bg-background/95 px-6 text-center text-sm text-muted-foreground">
-            {{ kakaoMapError }}
+            <div class="max-w-xs">
+              <p>{{ kakaoMapError }}</p>
+              <a :href="selectedHospitalDirectionsUrl !== '#' ? selectedHospitalDirectionsUrl : selectedHospitalKakaoSearchUrl" target="_blank" rel="noreferrer" class="mt-4 inline-flex h-10 items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground">
+                카카오맵에서 열기
+              </a>
+            </div>
           </div>
           <div v-if="selectedHospital && !kakaoMapError" class="absolute bottom-3 left-3 right-3 z-20 rounded-xl border border-border bg-background/95 p-4 shadow-lg backdrop-blur">
             <div class="flex items-start justify-between gap-3">

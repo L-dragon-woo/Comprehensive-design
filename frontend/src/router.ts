@@ -7,6 +7,7 @@ import ResultView from "@/views/ResultView.vue"
 import ChatView from "@/views/ChatView.vue"
 import HistoryView from "@/views/HistoryView.vue"
 import HospitalView from "@/views/HospitalView.vue"
+import MyPageView from "@/views/MyPageView.vue"
 import { isAuthenticated } from "@/lib/api"
 const router = createRouter({ history: createWebHistory(), routes: [
   { path: "/login", component: LoginView },
@@ -17,6 +18,7 @@ const router = createRouter({ history: createWebHistory(), routes: [
   { path: "/chat", component: ChatView, meta: { requiresAuth: true } },
   { path: "/hospitals", component: HospitalView, meta: { requiresAuth: true } },
   { path: "/history", component: HistoryView, meta: { requiresAuth: true } },
+  { path: "/mypage", component: MyPageView, meta: { requiresAuth: true } },
 ], scrollBehavior: () => ({ top: 0 }) })
 router.beforeEach((to) => { if (to.meta.requiresAuth && !isAuthenticated()) return { path: "/login", query: { redirect: to.fullPath } }; if (to.path === "/login" && isAuthenticated()) return "/" })
 export default router

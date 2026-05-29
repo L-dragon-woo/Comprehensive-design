@@ -4,6 +4,7 @@ import com.auth0.jwt.interfaces.DecodedJWT;
 import com.ohgiraffers.backend.auth.AuthDtos.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -49,7 +50,7 @@ public class AuthController {
             return issueTokens(request.username(), "SkinAI Admin");
         }
         UserEntity user = userService.authenticate(request.username(), request.password());
-        return issueTokens(user.getUsername(), user.getDisplayName());
+        return issueTokens(user);
     }
 
     @PostMapping("/register")
@@ -60,8 +61,22 @@ public class AuthController {
         if (adminUsername.equalsIgnoreCase(request.username()) || userService.exists(request.username())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "username already exists");
         }
-        UserEntity user = userService.register(request.username(), request.password(), request.displayName());
-        return issueTokens(user.getUsername(), user.getDisplayName());
+        UserEntity user = userService.register(
+                request.username(),
+                request.password(),
+                request.displayName(),
+                new UpdateProfileRequest(
+                        request.displayName(),
+                        request.gender(),
+                        request.age(),
+                        request.skinTreatmentHistory(),
+                        request.hasAllergy(),
+                        request.allergyDetails(),
+                        request.hasDisease(),
+                        request.diseaseDetails()
+                )
+        );
+        return issueTokens(user);
     }
 
     @PostMapping("/refresh")
@@ -72,7 +87,26 @@ public class AuthController {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "refresh token is not active");
         }
         tokenService.deleteRefreshToken(username, request.refreshToken());
-        return issueTokens(username);
+        if (adminUsername.equals(username)) {
+            return issueTokens(username, "SkinAI Admin");
+        }
+        return issueTokens(userService.getByUsername(username));
+    }
+
+    @GetMapping("/me")
+    public UserProfile me(Authentication authentication) {
+        if (adminUsername.equals(authentication.getName())) {
+            return adminProfile();
+        }
+        return toProfile(userService.getByUsername(authentication.getName()));
+    }
+
+    @PutMapping("/me")
+    public UserProfile updateMe(Authentication authentication, @RequestBody UpdateProfileRequest request) {
+        if (adminUsername.equals(authentication.getName())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "admin profile cannot be updated");
+        }
+        return toProfile(userService.updateProfile(authentication.getName(), request));
     }
 
     @PostMapping("/logout")
@@ -90,6 +124,31 @@ public class AuthController {
         String accessToken = jwtService.createAccessToken(username);
         String refreshToken = jwtService.createRefreshToken(username);
         tokenService.saveRefreshToken(username, refreshToken, jwtService.refreshTtlSeconds());
-        return new AuthResponse(accessToken, refreshToken, jwtService.accessTtlSeconds(), "Bearer", new UserProfile(username, displayName));
+        return new AuthResponse(accessToken, refreshToken, jwtService.accessTtlSeconds(), "Bearer", new UserProfile(username, displayName, null, null, null, false, null, false, null));
+    }
+
+    private AuthResponse issueTokens(UserEntity user) {
+        String accessToken = jwtService.createAccessToken(user.getUsername());
+        String refreshToken = jwtService.createRefreshToken(user.getUsername());
+        tokenService.saveRefreshToken(user.getUsername(), refreshToken, jwtService.refreshTtlSeconds());
+        return new AuthResponse(accessToken, refreshToken, jwtService.accessTtlSeconds(), "Bearer", toProfile(user));
+    }
+
+    private UserProfile toProfile(UserEntity user) {
+        return new UserProfile(
+                user.getUsername(),
+                user.getDisplayName(),
+                user.getGender(),
+                user.getAge(),
+                user.getSkinTreatmentHistory(),
+                user.isHasAllergy(),
+                user.getAllergyDetails(),
+                user.isHasDisease(),
+                user.getDiseaseDetails()
+        );
+    }
+
+    private UserProfile adminProfile() {
+        return new UserProfile(adminUsername, "SkinAI Admin", null, null, null, false, null, false, null);
     }
 }

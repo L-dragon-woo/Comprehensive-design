@@ -1,5 +1,16 @@
-export type UserProfile = { username: string; displayName: string }
+export type UserProfile = {
+  username: string
+  displayName: string
+  gender?: string | null
+  age?: number | null
+  skinTreatmentHistory?: string | null
+  hasAllergy: boolean
+  allergyDetails?: string | null
+  hasDisease: boolean
+  diseaseDetails?: string | null
+}
 export type AuthResponse = { accessToken: string; refreshToken: string; expiresIn: number; tokenType: string; user: UserProfile }
+export type ProfilePayload = Omit<UserProfile, "username">
 
 const accessKey = "skinai:access-token"
 const refreshKey = "skinai:refresh-token"
@@ -81,15 +92,37 @@ export async function login(username: string, password: string) {
   return data
 }
 
-export async function register(username: string, password: string, displayName: string) {
+export async function register(username: string, password: string, profile: ProfilePayload) {
   const res = await fetch("/api/auth/register", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password, displayName }),
+    body: JSON.stringify({ username, password, ...profile }),
   })
   if (!res.ok) throw new Error(authErrorMessage(await readErrorReason(res), "회원가입 정보를 확인해 주세요."))
   const data = (await res.json()) as AuthResponse
   saveAuth(data)
+  return data
+}
+
+export async function getMyProfile() {
+  const res = await apiFetch("/api/auth/me")
+  if (!res.ok) throw new Error(await readErrorReason(res))
+  const data = (await res.json()) as UserProfile
+  localStorage.setItem(userKey, JSON.stringify(data))
+  window.dispatchEvent(new CustomEvent("skinai:auth-updated"))
+  return data
+}
+
+export async function updateMyProfile(profile: ProfilePayload) {
+  const res = await apiFetch("/api/auth/me", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(profile),
+  })
+  if (!res.ok) throw new Error(await readErrorReason(res))
+  const data = (await res.json()) as UserProfile
+  localStorage.setItem(userKey, JSON.stringify(data))
+  window.dispatchEvent(new CustomEvent("skinai:auth-updated"))
   return data
 }
 

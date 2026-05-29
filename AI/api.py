@@ -5,13 +5,15 @@ import os
 import re
 import shutil
 import sys
+import time
 import uuid
 from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, Form, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel
 
 ROOT = Path(__file__).resolve().parent
@@ -34,6 +36,31 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+REQUEST_COUNT = Counter(
+    "ai_http_requests_total",
+    "Total HTTP requests handled by the AI service.",
+    ["method", "path", "status"],
+)
+REQUEST_LATENCY = Histogram(
+    "ai_http_request_duration_seconds",
+    "HTTP request latency for the AI service.",
+    ["method", "path"],
+)
+
+
+@app.middleware("http")
+async def collect_http_metrics(request: Request, call_next):
+    if request.url.path == "/metrics":
+        return await call_next(request)
+
+    start = time.perf_counter()
+    response = await call_next(request)
+    route = request.scope.get("route")
+    path = getattr(route, "path", request.url.path)
+    REQUEST_COUNT.labels(request.method, path, str(response.status_code)).inc()
+    REQUEST_LATENCY.labels(request.method, path).observe(time.perf_counter() - start)
+    return response
 
 
 class ChatRequest(BaseModel):
@@ -238,6 +265,11 @@ def _llm_chat_with_analysis(message: str, analysis: dict[str, Any]) -> str:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "ai"}
+
+
+@app.get("/metrics")
+def metrics() -> Response:
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.post("/api/chat", response_model=ChatResponse)

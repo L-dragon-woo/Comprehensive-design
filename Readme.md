@@ -230,3 +230,21 @@ docker compose down -v
 - AI 이미지 분석은 `AI/pipeline/inference_models`의 모델 파일을 사용합니다.
 - AI 분석 중 오류가 발생하면 mock/fallback 분석 결과가 반환되도록 구현되어 있습니다.
 - 프론트엔드는 Vite 개발 서버로 실행되며, Docker 실행 시에도 `5173` 포트를 사용합니다.
+
+## Monitoring
+
+Docker Compose also starts Prometheus and Grafana.
+
+| Service | URL | Notes |
+| --- | --- | --- |
+| Prometheus | http://localhost:9090 | Scrapes `backend`, `ai`, and Prometheus itself. |
+| Grafana | http://localhost:3000 | Login with `admin` / `admin`; Prometheus is provisioned as the default datasource. |
+
+Useful checks:
+
+```bash
+curl http://localhost:8080/actuator/prometheus
+curl http://localhost:8000/metrics
+```
+
+In Grafana, try queries such as `up`, `jvm_memory_used_bytes`, or `ai_http_requests_total`.

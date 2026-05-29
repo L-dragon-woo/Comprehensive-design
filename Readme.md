@@ -31,6 +31,8 @@ cd C:\Users\qhtm0\Desktop\project\Comprehensive-design-frontend
 
 Grafana 관리자 계정은 실행 환경에서 주입해야 합니다. 비밀번호는 저장소에 커밋하지 않습니다.
 
+루트 `.env` 파일을 만들거나 현재 PowerShell 세션에 아래 변수를 설정합니다. 예시는 `.env.example`을 참고합니다.
+
 ```powershell
 $env:GF_SECURITY_ADMIN_USER="admin"
 $env:GF_SECURITY_ADMIN_PASSWORD="<secure-password>"

@@ -15,7 +15,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
       "targets": [
-        { "refId": "A", "expr": "up", "legendFormat": "{{job}}" }
+        { "refId": "A", "expr": "max by (job) (up)", "legendFormat": "{{job}}", "instant": true, "range": false }
       ],
       "fieldConfig": {
         "defaults": {

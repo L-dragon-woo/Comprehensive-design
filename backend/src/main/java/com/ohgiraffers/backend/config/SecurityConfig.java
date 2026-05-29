@@ -14,7 +14,6 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
@@ -22,11 +21,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 @Configuration
 public class SecurityConfig {
-    @Bean
-    WebSecurityCustomizer webSecurityCustomizer() {
-        return web -> web.ignoring().requestMatchers(PathPatternRequestMatcher.pathPattern("/api/auth/**"));
-    }
-
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, JwtService jwtService) throws Exception {
         RequestMatcher internalManagementPrometheus = request ->
@@ -44,6 +38,10 @@ public class SecurityConfig {
                         .requestMatchers(PathPatternRequestMatcher.pathPattern("/error")).permitAll()
                         .requestMatchers(PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/actuator/health/**")).permitAll()
                         .requestMatchers(internalManagementPrometheus).permitAll()
+                        .requestMatchers(PathPatternRequestMatcher.pathPattern(HttpMethod.POST, "/api/auth/login")).permitAll()
+                        .requestMatchers(PathPatternRequestMatcher.pathPattern(HttpMethod.POST, "/api/auth/register")).permitAll()
+                        .requestMatchers(PathPatternRequestMatcher.pathPattern(HttpMethod.POST, "/api/auth/refresh")).permitAll()
+                        .requestMatchers(PathPatternRequestMatcher.pathPattern(HttpMethod.POST, "/api/auth/logout")).permitAll()
                         .requestMatchers(PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/api/ai/health")).permitAll()
                         .requestMatchers(PathPatternRequestMatcher.pathPattern(HttpMethod.POST, "/api/analyses")).permitAll()
                         .requestMatchers(PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/api/hospitals/search")).permitAll()

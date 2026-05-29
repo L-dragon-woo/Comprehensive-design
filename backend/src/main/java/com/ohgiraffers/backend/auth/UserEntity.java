@@ -25,6 +25,26 @@ public class UserEntity {
     @Column(nullable = false, length = 40)
     private String displayName;
 
+    @Column(length = 20)
+    private String gender;
+
+    private Integer age;
+
+    @Column(columnDefinition = "TEXT")
+    private String skinTreatmentHistory;
+
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean hasAllergy;
+
+    @Column(length = 500)
+    private String allergyDetails;
+
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean hasDisease;
+
+    @Column(length = 500)
+    private String diseaseDetails;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -54,7 +74,55 @@ public class UserEntity {
         return displayName;
     }
 
+    public String getGender() {
+        return gender;
+    }
+
+    public Integer getAge() {
+        return age;
+    }
+
+    public String getSkinTreatmentHistory() {
+        return skinTreatmentHistory;
+    }
+
+    public boolean isHasAllergy() {
+        return hasAllergy;
+    }
+
+    public String getAllergyDetails() {
+        return allergyDetails;
+    }
+
+    public boolean isHasDisease() {
+        return hasDisease;
+    }
+
+    public String getDiseaseDetails() {
+        return diseaseDetails;
+    }
+
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public void updateProfile(
+            String displayName,
+            String gender,
+            Integer age,
+            String skinTreatmentHistory,
+            boolean hasAllergy,
+            String allergyDetails,
+            boolean hasDisease,
+            String diseaseDetails
+    ) {
+        this.displayName = displayName;
+        this.gender = gender;
+        this.age = age;
+        this.skinTreatmentHistory = skinTreatmentHistory;
+        this.hasAllergy = hasAllergy;
+        this.allergyDetails = allergyDetails;
+        this.hasDisease = hasDisease;
+        this.diseaseDetails = diseaseDetails;
     }
 }

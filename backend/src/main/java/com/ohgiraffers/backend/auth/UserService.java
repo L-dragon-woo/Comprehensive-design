@@ -20,6 +20,10 @@ public class UserService {
     }
 
     public UserEntity register(String username, String password, String displayName) {
+        return register(username, password, displayName, null);
+    }
+
+    public UserEntity register(String username, String password, String displayName, AuthDtos.UpdateProfileRequest profile) {
         String normalizedUsername = normalizeUsername(username);
         validatePassword(password);
         String normalizedDisplayName = normalizeDisplayName(displayName, normalizedUsername);
@@ -29,12 +33,16 @@ public class UserService {
         }
 
         try {
-            return userRepository.save(new UserEntity(
+            UserEntity user = new UserEntity(
                     normalizedUsername,
                     passwordEncoder.encode(password),
                     normalizedDisplayName,
                     Instant.now()
-            ));
+            );
+            if (profile != null) {
+                applyProfile(user, profile, normalizedUsername);
+            }
+            return userRepository.save(user);
         } catch (DataIntegrityViolationException e) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "username already exists", e);
         }
@@ -52,6 +60,20 @@ public class UserService {
 
     public boolean exists(String username) {
         return userRepository.existsByUsername(normalizeUsername(username));
+    }
+
+    public UserEntity getByUsername(String username) {
+        return userRepository.findByUsername(normalizeUsername(username))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "user not found"));
+    }
+
+    public UserEntity updateProfile(String username, AuthDtos.UpdateProfileRequest profile) {
+        if (profile == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "profile data is required");
+        }
+        UserEntity user = getByUsername(username);
+        applyProfile(user, profile, user.getUsername());
+        return userRepository.save(user);
     }
 
     private String normalizeUsername(String username) {
@@ -78,6 +100,42 @@ public class UserService {
         String normalized = displayName.trim();
         if (normalized.length() > 40) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "displayName must be 40 characters or less");
+        }
+        return normalized;
+    }
+
+    private void applyProfile(UserEntity user, AuthDtos.UpdateProfileRequest profile, String username) {
+        boolean hasAllergy = Boolean.TRUE.equals(profile.hasAllergy());
+        boolean hasDisease = Boolean.TRUE.equals(profile.hasDisease());
+        user.updateProfile(
+                normalizeDisplayName(profile.displayName(), username),
+                normalizeOptional(profile.gender(), 20, "gender must be 20 characters or less"),
+                normalizeAge(profile.age()),
+                normalizeOptional(profile.skinTreatmentHistory(), 5000, "skinTreatmentHistory must be 5000 characters or less"),
+                hasAllergy,
+                hasAllergy ? normalizeOptional(profile.allergyDetails(), 500, "allergyDetails must be 500 characters or less") : null,
+                hasDisease,
+                hasDisease ? normalizeOptional(profile.diseaseDetails(), 500, "diseaseDetails must be 500 characters or less") : null
+        );
+    }
+
+    private Integer normalizeAge(Integer age) {
+        if (age == null) {
+            return null;
+        }
+        if (age < 0 || age > 130) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "age must be between 0 and 130");
+        }
+        return age;
+    }
+
+    private String normalizeOptional(String value, int maxLength, String errorMessage) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String normalized = value.trim();
+        if (normalized.length() > maxLength) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, errorMessage);
         }
         return normalized;
     }

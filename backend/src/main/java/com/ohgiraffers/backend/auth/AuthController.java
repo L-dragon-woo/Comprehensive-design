@@ -95,11 +95,17 @@ public class AuthController {
 
     @GetMapping("/me")
     public UserProfile me(Authentication authentication) {
+        if (adminUsername.equals(authentication.getName())) {
+            return adminProfile();
+        }
         return toProfile(userService.getByUsername(authentication.getName()));
     }
 
     @PutMapping("/me")
     public UserProfile updateMe(Authentication authentication, @RequestBody UpdateProfileRequest request) {
+        if (adminUsername.equals(authentication.getName())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "admin profile cannot be updated");
+        }
         return toProfile(userService.updateProfile(authentication.getName(), request));
     }
 
@@ -140,5 +146,9 @@ public class AuthController {
                 user.isHasDisease(),
                 user.getDiseaseDetails()
         );
+    }
+
+    private UserProfile adminProfile() {
+        return new UserProfile(adminUsername, "SkinAI Admin", null, null, null, false, null, false, null);
     }
 }

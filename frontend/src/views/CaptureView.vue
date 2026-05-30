@@ -25,6 +25,7 @@ const facingMode = ref<"user" | "environment">("user")
 const faceDetected = ref(false)
 const faceDetectionSupported = ref(false)
 const faceCheckMessage = ref("얼굴을 타원 안에 맞춰주세요")
+const faceWarningShown = ref(false)
 
 let stream: MediaStream | null = null
 let faceDetector: InstanceType<NonNullable<typeof window.FaceDetector>> | null = null
@@ -86,8 +87,12 @@ function capture() {
   if (!v || !c) return
 
   if (faceDetectionSupported.value && !faceDetected.value) {
-    error.value = "얼굴이 인식되지 않았습니다. 카메라 정면을 바라봐 주세요."
-    return
+    if (!faceWarningShown.value) {
+      error.value = "얼굴이 인식되지 않았습니다. 정확한 분석을 위해 얼굴을 가이드에 맞춰주세요."
+      faceWarningShown.value = true
+      setTimeout(() => { error.value = ""; faceWarningShown.value = false }, 2500)
+      return
+    }
   }
 
   c.width = v.videoWidth
@@ -95,6 +100,7 @@ function capture() {
   c.getContext("2d")?.drawImage(v, 0, 0)
   capturedImage.value = c.toDataURL("image/jpeg", 0.92)
   error.value = ""
+  faceWarningShown.value = false
 }
 
 function retake() {
@@ -231,13 +237,8 @@ onBeforeUnmount(stopCamera)
         <div class="w-14" />
 
         <button
-          :class="[
-            'flex h-20 w-20 items-center justify-center rounded-full shadow-lg transition-all duration-300',
-            faceDetectionSupported && !faceDetected
-              ? 'bg-primary/40 cursor-not-allowed'
-              : 'bg-primary active:scale-95',
-          ]"
-          :title="faceDetectionSupported && !faceDetected ? '얼굴 인식 후 촬영 가능합니다' : '촬영하기'"
+          class="flex h-20 w-20 items-center justify-center rounded-full bg-primary shadow-lg transition-all active:scale-95"
+          title="촬영하기"
           @click="capture"
         >
           <span class="flex h-16 w-16 items-center justify-center rounded-full border-4 border-primary-foreground/90">

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CircleDot, Droplets, Home, MapPin, MessageCircle, NotebookPen, Save, Sparkles, Stethoscope, Sun } from "lucide-vue-next"
+import { CircleDot, Droplets, FileDown, Home, MapPin, MessageCircle, NotebookPen, Save, Sparkles, Stethoscope, Sun } from "lucide-vue-next"
 import { computed, onMounted, ref, watch } from "vue"
 import { useRoute } from "vue-router"
 import AnalysisCard from "@/components/AnalysisCard.vue"
@@ -7,7 +7,8 @@ import AppHeader from "@/components/AppHeader.vue"
 import BaseButton from "@/components/BaseButton.vue"
 import PageContainer from "@/components/PageContainer.vue"
 import ScoreRing from "@/components/ScoreRing.vue"
-import { getMyAnalysis } from "@/lib/api"
+import { getCurrentUser, getMyAnalysis } from "@/lib/api"
+import { openPdfPreview } from "@/lib/pdf"
 import { getAnalysisNotes, getLastAnalysis, getLastAnalysisId, normalizeAnalysisResponse, saveAnalysisNotes, type AnalysisResult } from "@/lib/skinai"
 
 const route = useRoute()
@@ -35,6 +36,15 @@ function saveNotes() {
 }
 
 watch(resolvedId, loadNotes)
+
+function downloadPdf() {
+  if (!result.value) return
+  openPdfPreview({
+    analysis: result.value,
+    user: getCurrentUser(),
+    notes: notes.value,
+  })
+}
 
 onMounted(async () => {
   if (!analysisId.value) {
@@ -172,6 +182,10 @@ onMounted(async () => {
             AI 상담하기
           </BaseButton>
         </RouterLink>
+        <BaseButton variant="outline" size="lg" class="h-14 w-full rounded-2xl" @click="downloadPdf">
+          <FileDown class="h-5 w-5" />
+          결과지 PDF 저장
+        </BaseButton>
         <RouterLink to="/" class="block">
           <BaseButton variant="ghost" size="lg" class="h-12 w-full rounded-xl">
             <Home class="h-4 w-4" />

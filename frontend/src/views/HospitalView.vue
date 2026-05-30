@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { CheckCircle2, MapPin, Navigation, Phone, Search, Send } from "lucide-vue-next"
+import { CheckCircle2, ChevronDown, ChevronUp, Eye, FileText, MapPin, Navigation, Phone, Search, Send, X } from "lucide-vue-next"
 import { computed, nextTick, onMounted, ref, watch } from "vue"
 import AppHeader from "@/components/AppHeader.vue"
 import BaseButton from "@/components/BaseButton.vue"
 import BottomNav from "@/components/BottomNav.vue"
 import PageContainer from "@/components/PageContainer.vue"
-import { saveHospitalApplication } from "@/lib/skinai"
+import { getCurrentUser } from "@/lib/api"
+import { openPdfPreview } from "@/lib/pdf"
+import { getAnalysisNotes, getLastAnalysis, getLastAnalysisId, saveHospitalApplication, type AnalysisResult } from "@/lib/skinai"
 
 type Hospital = { id: string; name: string; roadAddress: string; address: string; phone: string; distance: string; x: string; y: string; placeUrl: string }
 
@@ -22,6 +24,38 @@ const loading = ref(false)
 const error = ref("")
 const submittedHospitalName = ref("")
 const coords = ref<{ x: string; y: string } | null>(null)
+
+const showSubmitModal = ref(false)
+const submitNote = ref("")
+const selectedItems = ref<string[]>(["AI 분석 결과", "추천 시술", "피부 지표"])
+const availableItems = ["AI 분석 결과", "추천 시술", "피부 지표", "관리 추천"]
+const currentAnalysis = ref<AnalysisResult | null>(null)
+const showMetricsDetail = ref(false)
+
+function openSubmitModal() {
+  currentAnalysis.value = getLastAnalysis()
+  submitNote.value = getLastAnalysisId() ? getAnalysisNotes(getLastAnalysisId()!) : ""
+  showSubmitModal.value = true
+}
+
+function closeSubmitModal() {
+  showSubmitModal.value = false
+}
+
+function toggleItem(item: string) {
+  const idx = selectedItems.value.indexOf(item)
+  if (idx >= 0) selectedItems.value.splice(idx, 1)
+  else selectedItems.value.push(item)
+}
+
+function previewPdf() {
+  if (!currentAnalysis.value) return
+  openPdfPreview({
+    analysis: currentAnalysis.value,
+    user: getCurrentUser(),
+    notes: submitNote.value,
+  })
+}
 const kakaoMapAppKey = import.meta.env.VITE_KAKAO_JAVASCRIPT_KEY || import.meta.env.VITE_KAKAO_MAP_APP_KEY || ""
 const kakaoMapContainer = ref<HTMLElement | null>(null)
 const kakaoMapError = ref("")
@@ -183,8 +217,12 @@ function submitReport() {
     hospitalName: selectedHospital.value.name,
     submittedAt: new Date().toISOString(),
     status: "submitted",
-    includedItems: ["AI 분석 결과", "추천 시술", "피부 지표"],
+    includedItems: [...selectedItems.value],
+    analysisId: getLastAnalysisId() || undefined,
+    analysisSnapshot: currentAnalysis.value || undefined,
+    submissionNote: submitNote.value || undefined,
   })
+  closeSubmitModal()
 }
 
 watch(
@@ -273,7 +311,7 @@ onMounted(() => loadHospitals(true))
     <section v-if="selectedHospital" class="space-y-3 py-6">
       <div class="rounded-2xl border border-border bg-card p-5 shadow-sm">
         <h3 class="mb-2 text-base font-semibold">결과지 제출</h3>
-        <p class="mb-4 text-sm text-muted-foreground">{{ selectedHospital.name }}에 분석 결과를 제출할 수 있습니다.</p>
+        <p class="mb-4 text-sm text-muted-foreground">{{ selectedHospital.name }}에 AI 분석 결과를 제출합니다.</p>
         <div class="flex gap-3">
           <a :href="selectedHospital.phone ? `tel:${selectedHospital.phone}` : selectedHospital.placeUrl" class="flex-1">
             <BaseButton variant="outline" size="lg" class="h-12 w-full rounded-xl">
@@ -281,9 +319,9 @@ onMounted(() => loadHospitals(true))
               전화
             </BaseButton>
           </a>
-          <BaseButton size="lg" class="h-12 flex-1 rounded-xl" @click="submitReport">
-            <Send class="h-4 w-4" />
-            제출
+          <BaseButton size="lg" class="h-12 flex-1 rounded-xl" @click="openSubmitModal">
+            <Eye class="h-4 w-4" />
+            미리보기 및 제출
           </BaseButton>
         </div>
       </div>
@@ -296,4 +334,108 @@ onMounted(() => loadHospitals(true))
     </section>
   </PageContainer>
   <BottomNav />
+
+  <!-- 제출 미리보기 모달 -->
+  <Teleport to="body">
+    <div v-if="showSubmitModal" class="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="closeSubmitModal" />
+      <div class="relative z-10 w-full max-w-lg overflow-hidden rounded-t-3xl bg-background sm:rounded-3xl">
+        <!-- 모달 헤더 -->
+        <div class="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 class="text-lg font-bold">결과지 제출</h2>
+          <button class="flex h-8 w-8 items-center justify-center rounded-full bg-muted" @click="closeSubmitModal">
+            <X class="h-4 w-4" />
+          </button>
+        </div>
+
+        <div class="max-h-[70vh] overflow-y-auto">
+          <div class="space-y-5 p-5">
+            <!-- 병원 정보 -->
+            <div class="rounded-2xl bg-primary/5 p-4">
+              <p class="text-xs font-semibold text-primary">제출 병원</p>
+              <p class="mt-1 font-semibold">{{ selectedHospital?.name }}</p>
+              <p class="text-sm text-muted-foreground">{{ selectedHospital?.roadAddress || selectedHospital?.address }}</p>
+            </div>
+
+            <!-- 분석 결과 미리보기 -->
+            <div v-if="currentAnalysis">
+              <div class="mb-3 flex items-center justify-between">
+                <h3 class="font-semibold">분석 결과 미리보기</h3>
+                <button class="flex items-center gap-1 text-sm text-primary" @click="showMetricsDetail = !showMetricsDetail">
+                  <component :is="showMetricsDetail ? ChevronUp : ChevronDown" class="h-4 w-4" />
+                  {{ showMetricsDetail ? "접기" : "상세보기" }}
+                </button>
+              </div>
+              <div class="rounded-2xl border border-border bg-card p-4">
+                <div class="flex items-center gap-3">
+                  <div class="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+                    <span class="text-xl font-bold text-primary">{{ currentAnalysis.overallScore || 0 }}</span>
+                  </div>
+                  <div>
+                    <p class="font-semibold">{{ currentAnalysis.skinType }}</p>
+                    <div class="mt-1 flex flex-wrap gap-1">
+                      <span v-for="c in currentAnalysis.concerns?.slice(0, 3)" :key="c" class="rounded-full bg-accent px-2 py-0.5 text-xs">{{ c }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="showMetricsDetail && currentAnalysis.metrics?.length" class="mt-4 space-y-2 border-t border-border pt-4">
+                  <div v-for="m in currentAnalysis.metrics" :key="m.id" class="flex items-center justify-between text-sm">
+                    <span class="text-muted-foreground">{{ m.title }}</span>
+                    <span class="font-semibold">{{ m.score }}점</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-else class="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+              <FileText class="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
+              <p>분석 결과가 없습니다. 먼저 피부 분석을 진행해 주세요.</p>
+            </div>
+
+            <!-- 포함 항목 선택 -->
+            <div>
+              <h3 class="mb-3 font-semibold">포함할 항목</h3>
+              <div class="space-y-2">
+                <label v-for="item in availableItems" :key="item" class="flex cursor-pointer items-center gap-3 rounded-xl border border-border p-3">
+                  <input
+                    type="checkbox"
+                    :checked="selectedItems.includes(item)"
+                    class="h-4 w-4 rounded accent-primary"
+                    @change="toggleItem(item)"
+                  />
+                  <span class="text-sm font-medium">{{ item }}</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- 메모 -->
+            <div>
+              <h3 class="mb-3 font-semibold">병원에 전달할 메모 <span class="font-normal text-muted-foreground text-sm">(선택)</span></h3>
+              <textarea
+                v-model="submitNote"
+                placeholder="증상, 고민, 요청 사항 등을 입력하세요"
+                class="w-full resize-none rounded-xl border border-border bg-input px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                rows="3"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- 모달 하단 버튼 -->
+        <div class="border-t border-border p-5">
+          <div class="flex gap-3">
+            <BaseButton v-if="currentAnalysis" variant="outline" class="h-12 flex-1 rounded-xl" @click="previewPdf">
+              <FileText class="h-4 w-4" />
+              PDF 미리보기
+            </BaseButton>
+            <BaseButton class="h-12 flex-1 rounded-xl" :disabled="!currentAnalysis" @click="submitReport">
+              <Send class="h-4 w-4" />
+              제출하기
+            </BaseButton>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>

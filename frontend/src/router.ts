@@ -15,6 +15,7 @@ const router = createRouter({ history: createWebHistory(), routes: [
   { path: "/capture", component: CaptureView, meta: { requiresAuth: true } },
   { path: "/loading", component: LoadingView, meta: { requiresAuth: true } },
   { path: "/result", component: ResultView, meta: { requiresAuth: true } },
+  { path: "/result/:id", component: ResultView, meta: { requiresAuth: true } },
   { path: "/chat", component: ChatView, meta: { requiresAuth: true } },
   { path: "/hospitals", component: HospitalView, meta: { requiresAuth: true } },
   { path: "/history", component: HistoryView, meta: { requiresAuth: true } },

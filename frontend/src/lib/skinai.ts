@@ -20,6 +20,9 @@ export interface HospitalApplication {
   submittedAt: string
   status: "submitted" | "reviewing" | "confirmed"
   includedItems: string[]
+  analysisId?: string
+  analysisSnapshot?: AnalysisResult
+  submissionNote?: string
 }
 
 export type AnalysisResult = {
@@ -35,6 +38,8 @@ export type AnalysisResult = {
 
 const applicationStorageKey = "skinai:hospital-applications"
 const analysisStorageKey = "skinai:last-analysis"
+const lastAnalysisIdKey = "skinai:last-analysis-id"
+const notesStorageKey = "skinai:analysis-notes"
 
 const metricLabels: Record<string, { title: string; status: string; description: string }> = {
   hydration: { title: "수분", status: "관리 필요", description: "피부 수분 밸런스를 확인하세요" },
@@ -225,6 +230,31 @@ export function formatApplicationDate(value: string) {
   return new Intl.DateTimeFormat("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date)
 }
 
+export function saveLastAnalysisId(id: string) {
+  localStorage.setItem(lastAnalysisIdKey, id)
+}
+
+export function getLastAnalysisId(): string | null {
+  return localStorage.getItem(lastAnalysisIdKey)
+}
+
+export function getAnalysisNotes(analysisId: string): string {
+  try {
+    const all = JSON.parse(localStorage.getItem(notesStorageKey) || "{}")
+    return typeof all[analysisId] === "string" ? all[analysisId] : ""
+  } catch {
+    return ""
+  }
+}
+
+export function saveAnalysisNotes(analysisId: string, notes: string) {
+  try {
+    const all = JSON.parse(localStorage.getItem(notesStorageKey) || "{}")
+    all[analysisId] = notes
+    localStorage.setItem(notesStorageKey, JSON.stringify(all))
+  } catch {}
+}
+
 export function saveLastAnalysis(result: unknown) {
   localStorage.setItem(analysisStorageKey, JSON.stringify(normalizeAnalysisResponse(result)))
   window.dispatchEvent(new CustomEvent("skinai:analysis-updated"))
@@ -241,6 +271,7 @@ export function getLastAnalysis(): AnalysisResult | null {
 
 export function clearLastAnalysis() {
   localStorage.removeItem(analysisStorageKey)
+  localStorage.removeItem(lastAnalysisIdKey)
   window.dispatchEvent(new CustomEvent("skinai:analysis-updated"))
 }
 

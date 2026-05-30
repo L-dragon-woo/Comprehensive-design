@@ -108,10 +108,24 @@ function switchCamera() {
   startCamera()
 }
 
+async function compressImage(dataUrl: string, maxSizeMb = 5): Promise<Blob> {
+  const blob = await (await fetch(dataUrl)).blob()
+  if (blob.size <= maxSizeMb * 1024 * 1024) return blob
+  const img = new Image()
+  img.src = dataUrl
+  await new Promise((resolve) => { img.onload = resolve })
+  const c = document.createElement("canvas")
+  const scale = Math.sqrt((maxSizeMb * 1024 * 1024) / blob.size)
+  c.width = Math.round(img.width * scale)
+  c.height = Math.round(img.height * scale)
+  c.getContext("2d")?.drawImage(img, 0, 0, c.width, c.height)
+  return await new Promise<Blob>((resolve) => c.toBlob((b) => resolve(b!), "image/jpeg", 0.85))
+}
+
 async function analyze() {
   if (!capturedImage.value) return
   loading.value = true
-  const blob = await (await fetch(capturedImage.value)).blob()
+  const blob = await compressImage(capturedImage.value)
   const formData = new FormData()
   formData.append("image", blob, "capture.jpg")
   formData.append("gender", "female")

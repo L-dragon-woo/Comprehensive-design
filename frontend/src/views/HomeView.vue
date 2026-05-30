@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowRight, Camera, ChevronRight, MapPin, MessageCircle, Shield, Sparkles } from "lucide-vue-next"
+import { ArrowRight, Camera, ChevronRight, FileText, MapPin, MessageCircle, Shield, Sparkles } from "lucide-vue-next"
 import { computed, onMounted, onUnmounted, ref } from "vue"
 import AppHeader from "@/components/AppHeader.vue"
 import BaseButton from "@/components/BaseButton.vue"
@@ -7,13 +7,36 @@ import BottomNav from "@/components/BottomNav.vue"
 import FeatureCard from "@/components/FeatureCard.vue"
 import PageContainer from "@/components/PageContainer.vue"
 import ScoreRing from "@/components/ScoreRing.vue"
-import { getMyAnalyses } from "@/lib/api"
-import { formatApplicationDate, getHospitalApplications, getLastAnalysis, type HospitalApplication } from "@/lib/skinai"
-import { normalizeAnalysisResponse } from "@/lib/skinai"
+import { getCurrentUser, getMyAnalyses } from "@/lib/api"
+import { openPdfPreview } from "@/lib/pdf"
+import { formatApplicationDate, getHospitalApplications, getLastAnalysis, normalizeAnalysisResponse, type HospitalApplication } from "@/lib/skinai"
 
 const applications = ref<HospitalApplication[]>([])
 const analysis = ref(getLastAnalysis())
 const latestApplication = computed(() => applications.value[0])
+
+function viewApplicationPdf(application: HospitalApplication) {
+  if (application.analysisSnapshot) {
+    openPdfPreview({
+      analysis: application.analysisSnapshot,
+      user: getCurrentUser(),
+      notes: application.submissionNote,
+    })
+  } else if (analysis.value) {
+    openPdfPreview({
+      analysis: analysis.value,
+      user: getCurrentUser(),
+    })
+  }
+}
+
+function statusLabel(status: HospitalApplication["status"]) {
+  return { submitted: "제출 완료", reviewing: "검토 중", confirmed: "확인됨" }[status] || status
+}
+
+function statusColor(status: HospitalApplication["status"]) {
+  return { submitted: "text-primary bg-primary/10", reviewing: "text-warning bg-warning/10", confirmed: "text-success bg-success/10" }[status] || "text-muted-foreground bg-muted"
+}
 
 function refresh() {
   applications.value = getHospitalApplications()
@@ -93,16 +116,47 @@ onUnmounted(() => {
     </section>
 
     <section v-if="latestApplication" class="py-6">
-      <h2 class="mb-4 text-lg font-semibold">병원 신청 현황</h2>
-      <div class="rounded-2xl border border-primary/20 bg-card p-5 shadow-sm">
-        <p class="font-semibold">{{ latestApplication.hospitalName }}</p>
-        <p class="mt-1 text-sm text-muted-foreground">{{ formatApplicationDate(latestApplication.submittedAt) }} 제출</p>
-        <RouterLink to="/hospitals" class="mt-4 block">
-          <BaseButton variant="outline" class="w-full">
-            <MapPin class="h-4 w-4" />
-            병원 목록 보기
-          </BaseButton>
+      <div class="mb-4 flex items-center justify-between">
+        <h2 class="text-lg font-semibold">병원 신청 현황</h2>
+        <RouterLink to="/hospitals" class="flex items-center gap-1 text-sm font-medium text-primary">
+          병원 찾기
+          <ChevronRight class="h-4 w-4" />
         </RouterLink>
+      </div>
+      <div class="rounded-2xl border border-primary/20 bg-card p-5 shadow-sm">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex-1 min-w-0">
+            <p class="font-semibold truncate">{{ latestApplication.hospitalName }}</p>
+            <p class="mt-1 text-sm text-muted-foreground">{{ formatApplicationDate(latestApplication.submittedAt) }} 제출</p>
+            <div class="mt-2 flex flex-wrap gap-1.5">
+              <span v-for="item in latestApplication.includedItems" :key="item" class="rounded-full bg-accent px-2.5 py-1 text-xs">{{ item }}</span>
+            </div>
+          </div>
+          <span :class="['shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold', statusColor(latestApplication.status)]">
+            {{ statusLabel(latestApplication.status) }}
+          </span>
+        </div>
+        <div class="mt-4 flex gap-2">
+          <RouterLink
+            :to="latestApplication.analysisId ? `/result/${latestApplication.analysisId}` : '/result'"
+            class="flex-1"
+          >
+            <BaseButton variant="outline" size="sm" class="w-full">
+              <MapPin class="h-3.5 w-3.5" />
+              결과 보기
+            </BaseButton>
+          </RouterLink>
+          <BaseButton
+            v-if="latestApplication.analysisSnapshot || analysis"
+            variant="outline"
+            size="sm"
+            class="flex-1"
+            @click="viewApplicationPdf(latestApplication)"
+          >
+            <FileText class="h-3.5 w-3.5" />
+            PDF 보기
+          </BaseButton>
+        </div>
       </div>
     </section>
 

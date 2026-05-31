@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import os
@@ -86,6 +86,7 @@ class ChatRequest(BaseModel):
     message: str
     sessionId: str | None = None
     analysis: dict[str, Any] | None = None
+    history: list[dict[str, Any]] | None = None
 
 
 class ChatResponse(BaseModel):
@@ -286,7 +287,22 @@ def _runtime_config_path() -> Path:
     return out
 
 
-def _llm_chat_with_analysis(message: str, analysis: dict[str, Any]) -> str:
+def _format_chat_history(history: list[dict[str, Any]] | None) -> str:
+    if not history:
+        return "No previous conversation"
+
+    lines: list[str] = []
+    for item in history[-8:]:
+        role = str(item.get("role", "")).lower()
+        content = str(item.get("content", "")).strip()
+        if not content:
+            continue
+        label = "User" if role == "user" else "Assistant"
+        lines.append(f"{label}: {content[:700]}")
+    return "\n".join(lines) if lines else "No previous conversation"
+
+
+def _llm_chat_with_analysis(message: str, analysis: dict[str, Any], history: list[dict[str, Any]] | None = None) -> str:
     from langchain.chat_models import init_chat_model
     from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -297,21 +313,24 @@ def _llm_chat_with_analysis(message: str, analysis: dict[str, Any]) -> str:
 
     llm = init_chat_model(model=AI_MODEL, temperature=0.2)
     analysis_text = json.dumps(analysis, ensure_ascii=False, indent=2)
+    history_text = _format_chat_history(history)
     response = llm.invoke(
         [
             SystemMessage(
                 content=(
-                    "당신은 SkinAI의 피부 분석 상담 어시스턴트입니다. "
-                    "이미지 분석 결과가 이미 제공되어 있으므로 image_path를 다시 요구하거나 분석 도구 호출을 요청하지 마세요. "
-                    "제공된 분석 수치를 바탕으로 한국어로 간결하고 실용적인 상담 답변을 하세요. "
-                    "의학적 진단처럼 단정하지 말고, 실제 시술 여부는 전문가 상담이 필요하다고 안내하세요."
+                    "You are SkinAI's Korean skin-analysis consultation assistant. "
+                    "Use the provided analysis JSON and previous conversation to answer the current question. "
+                    "Do not request a new image or call image analysis again. "
+                    "Do not greet again after the first assistant message. "
+                    "Avoid repeating the same explanation from earlier turns; answer only the new or missing part. "
+                    "Keep answers practical, concise, and in Korean. "
+                    "Do not present medical certainty; advise an in-person professional consultation for final treatment decisions."
                 )
             ),
-            HumanMessage(content=f"분석 결과 JSON:\n{analysis_text}\n\n사용자 질문:\n{message}"),
+            HumanMessage(content=f"Analysis JSON:\n{analysis_text}\n\nPrevious conversation:\n{history_text}\n\nCurrent user question:\n{message}"),
         ]
     )
     return _extract_llm_text(getattr(response, "content", response)).strip()
-
 
 def _pipeline_result_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
     nested = analysis.get("result")
@@ -385,7 +404,7 @@ def chat(request: ChatRequest) -> ChatResponse:
 
     try:
         if analysis:
-            content = _llm_chat_with_analysis(request.message, analysis)
+            content = _llm_chat_with_analysis(request.message, analysis, request.history)
             if content:
                 return ChatResponse(sessionId=session_id, content=content, mode="llm")
 
@@ -559,3 +578,4 @@ async def analyze(
         return response
     finally:
         image_path.unlink(missing_ok=True)
+

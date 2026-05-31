@@ -40,10 +40,16 @@ async function scrollToBottom() {
 }
 
 async function requestAIResponse(question: string) {
+  const history = messages.value
+    .filter((message) => message.id !== "welcome")
+    .filter((message, index, list) => !(index === list.length - 1 && message.role === "user" && message.content === question))
+    .slice(-8)
+    .map((message) => ({ role: message.role, content: message.content }))
+
   const res = await apiFetch("/api/consultations/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: question, sessionId: sessionId.value, analysis: chatAnalysis }),
+    body: JSON.stringify({ message: question, sessionId: sessionId.value, analysis: chatAnalysis, history }),
   })
   if (!res.ok) throw new Error(`AI 상담 요청에 실패했습니다. (${res.status})`)
   const data = await res.json()

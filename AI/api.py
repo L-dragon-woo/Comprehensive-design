@@ -313,6 +313,11 @@ def _llm_chat_with_analysis(message: str, analysis: dict[str, Any]) -> str:
     return _extract_llm_text(getattr(response, "content", response)).strip()
 
 
+def _pipeline_result_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
+    nested = analysis.get("result")
+    return nested if isinstance(nested, dict) else analysis
+
+
 def _mock_analysis(gender: str) -> dict[str, Any]:
     return {
         "gender": gender,
@@ -372,7 +377,7 @@ def chat(request: ChatRequest) -> ChatResponse:
 def analyses_summary(request: AnalysisSummaryRequest) -> dict[str, Any]:
     """피부 분석 JSON에서 beauty-agent(PubMed 포함)를 이용해 종합 레포트 생성."""
     session_id = request.sessionId or str(uuid.uuid4())
-    pipeline_result = request.analysis or {}
+    pipeline_result = _pipeline_result_from_analysis(request.analysis or {})
     gender = (request.gender or "female").lower()
 
     openai_key = (os.getenv("OPENAI_API_KEY") or "").strip()
@@ -403,22 +408,30 @@ def analyses_summary(request: AnalysisSummaryRequest) -> dict[str, Any]:
         session.graph.update_state(session.config, {
             "skin_scores": skin_scores,
             "top_concerns": top_concerns,
+            "gender": gender,
         })
 
         # 1단계: 추천 + PubMed 근거 수집 (inject_recommend / inject_pubmed 자동 발동)
         try:
-            session.send(f"성별은 {gender}이고 피부 분석이 완료됐어. 부위별 맞춤 시술 추천해줘.")
+            session.send(
+                f"The skin analysis is complete and the user's gender is {gender}. "
+                "Recommend treatment by skin region using the stored analysis state."
+            )
         except Exception as exc:
             print(f"[summary] recommend step failed: {type(exc).__name__}: {exc}", file=sys.stderr)
 
         # 2단계: 종합 레포트 생성 (final_report 노드 경유)
-        session.send("레포트 작성해줘")
+        session.send("Write the final report summary. Include PubMed evidence and PMID when available.")
 
         final_text = session.final_answer
         if not final_text or not final_text.strip():
             final_text = _llm_chat_with_analysis("피부 분석 결과를 한국어로 요약해줘.", pipeline_result)
 
-        return {"content": final_text.strip(), "sessionId": session_id, "mode": "agent"}
+        return {
+            "content": final_text.strip(),
+            "sessionId": session_id,
+            "mode": "agent_pubmed" if session.pubmed_recommendations else "agent",
+        }
 
     except Exception as exc:
         print(f"[summary] agent failed: {type(exc).__name__}: {exc}", file=sys.stderr)

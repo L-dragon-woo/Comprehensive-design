@@ -2,6 +2,7 @@
 import { CircleDot, Droplets, FileDown, Home, MapPin, MessageCircle, NotebookPen, Save, Sparkles, Stethoscope, Sun } from "lucide-vue-next"
 import { computed, onMounted, ref, watch } from "vue"
 import { useRoute } from "vue-router"
+import AiFormattedText from "@/components/AiFormattedText.vue"
 import AnalysisCard from "@/components/AnalysisCard.vue"
 import AppHeader from "@/components/AppHeader.vue"
 import BaseButton from "@/components/BaseButton.vue"
@@ -200,7 +201,7 @@ onMounted(async () => {
             <div class="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             AI가 분석 결과를 정리하는 중...
           </div>
-          <p v-else class="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{{ aiSummary }}</p>
+          <AiFormattedText v-else :content="aiSummary" />
         </div>
       </section>
 

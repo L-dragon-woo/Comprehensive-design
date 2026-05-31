@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Sparkles, User } from "lucide-vue-next"
+import AiFormattedText from "@/components/AiFormattedText.vue"
 import type { ChatMessage } from "@/lib/skinai"
 
 defineProps<{ message: ChatMessage }>()
@@ -12,7 +13,8 @@ defineProps<{ message: ChatMessage }>()
       <User v-else class="h-4 w-4 text-muted-foreground" />
     </div>
     <div :class="['max-w-[80%] rounded-2xl px-4 py-3', message.role === 'assistant' ? 'rounded-bl-sm bg-secondary text-foreground' : 'rounded-br-sm bg-primary text-primary-foreground']">
-      <p class="whitespace-pre-wrap text-sm leading-relaxed">{{ message.content }}</p>
+      <AiFormattedText v-if="message.role === 'assistant'" :content="message.content" compact />
+      <p v-else class="whitespace-pre-wrap text-sm leading-relaxed">{{ message.content }}</p>
     </div>
   </div>
 </template>

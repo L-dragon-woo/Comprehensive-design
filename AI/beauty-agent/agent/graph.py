@@ -58,6 +58,17 @@ from agent.routers import (
 from agent.state import BeautyAgentState
 
 
+def _iter_update_messages(node_update: Any) -> Iterator[Any]:
+    """Yield LangGraph update messages from dict or list payload shapes."""
+    if isinstance(node_update, dict):
+        for msg in node_update.get("messages") or []:
+            yield msg
+        return
+    if isinstance(node_update, list):
+        for item in node_update:
+            yield from _iter_update_messages(item)
+
+
 def build_graph(checkpointer: InMemorySaver | None = None):
     """2단계 계층 라우팅 + ReAct 사이클 + 레포트 작성 경로.
 
@@ -242,8 +253,7 @@ class ChatSession:
                             yield text
                 elif kind == "updates":
                     for _node_name, node_update in payload.items():
-                        msgs = (node_update or {}).get("messages") or []
-                        for msg in msgs:
+                        for msg in _iter_update_messages(node_update):
                             if isinstance(msg, AIMessage):
                                 for call in (msg.tool_calls or []):
                                     cid = call.get("id") or f"_{call.get('name')}"

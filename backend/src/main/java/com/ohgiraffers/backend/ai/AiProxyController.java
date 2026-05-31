@@ -115,4 +115,18 @@ public class AiProxyController {
     }
 
     public record SavedAnalysisResponse(String analysisId, String createdAt, Map<String, Object> analysis) {}
+
+    public record AnalysisSummaryRequest(Map<String, Object> analysis, String gender, String sessionId) {}
+
+    @PostMapping("/api/analyses/summary")
+    public Map<String, Object> analysesSummary(
+            @org.springframework.web.bind.annotation.RequestBody AnalysisSummaryRequest request) {
+        return aiClient.post()
+                .uri("/api/analyses/summary")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(request)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                .block();
+    }
 }

@@ -72,13 +72,10 @@ function downloadPdf() {
 async function fetchAiSummary(analysis: unknown) {
   aiSummaryLoading.value = true
   try {
-    const res = await apiFetch("/api/consultations/messages", {
+    const res = await apiFetch("/api/analyses/summary", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: "이 분석 결과를 바탕으로 주요 피부 문제와 추천 시술, 관리 방법을 한국어로 읽기 쉽게 요약해줘.",
-        analysis,
-      }),
+      body: JSON.stringify({ analysis, gender: "female" }),
     })
     if (res.ok) {
       const data = await res.json() as Record<string, unknown>

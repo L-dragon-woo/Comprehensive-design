@@ -94,6 +94,8 @@ function handleKeydown(event: KeyboardEvent) {
             :skin-type="analysis.skinType || '피부 타입 분석'"
             :main-concern="(analysis.concerns || []).join(', ')"
             :metrics="analysis.metrics"
+            :concerns="analysis.concerns"
+            :treatments="analysis.treatments"
           />
           <ChatBubble v-for="message in messages" :key="message.id" :message="message" />
           <ChatTypingIndicator v-if="isLoading" />

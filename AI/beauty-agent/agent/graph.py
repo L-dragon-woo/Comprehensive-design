@@ -86,6 +86,7 @@ def build_graph(checkpointer: InMemorySaver | None = None):
     })
     workflow.add_conditional_edges("data_gate", route_after_data_gate, {
         "compress":              "compress",
+        "final_report":          "final_report",
         "insufficient_response": "insufficient_response",
     })
 

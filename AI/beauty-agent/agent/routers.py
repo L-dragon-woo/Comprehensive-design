@@ -81,11 +81,14 @@ def route_after_data_gate(state: BeautyAgentState) -> str:
     """data_gate 이후 2차 분기. report 의도가 확정된 상태에서 데이터 충분 여부 검증.
 
     - 진단 + (시술 추천 or 논문 근거) → compress (→ final_report)
-    - 부족 → insufficient_response
+    - 진단만 있음(DB/PubMed 미조회) → final_report 직행 (피부 점수만으로 기본 레포트)
+    - 진단 없음 → insufficient_response
     """
     has_diag = bool((state.get("skin_scores") or {}).get("raw_scores"))
     has_db = bool(state.get("db_recommendations"))
     has_pub = bool(state.get("pubmed_recommendations"))
     if has_diag and (has_db or has_pub):
         return "compress"
+    if has_diag:
+        return "final_report"
     return "insufficient_response"

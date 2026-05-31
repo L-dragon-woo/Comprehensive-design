@@ -94,6 +94,12 @@ class ChatResponse(BaseModel):
     mode: str = "fallback"
 
 
+class AnalysisSummaryRequest(BaseModel):
+    analysis: dict[str, Any]
+    gender: str = "female"
+    sessionId: str | None = None
+
+
 def _t(text: str) -> str:
     return re.sub(r"\\u([0-9a-fA-F]{4})", lambda match: chr(int(match.group(1), 16)), text)
 
@@ -360,6 +366,67 @@ def chat(request: ChatRequest) -> ChatResponse:
         return ChatResponse(sessionId=session_id, content=fallback, mode="llm_error")
 
     return ChatResponse(sessionId=session_id, content=_fallback_chat(request.message, analysis), mode="fallback")
+
+
+@app.post("/api/analyses/summary")
+def analyses_summary(request: AnalysisSummaryRequest) -> dict[str, Any]:
+    """피부 분석 JSON에서 beauty-agent(PubMed 포함)를 이용해 종합 레포트 생성."""
+    session_id = request.sessionId or str(uuid.uuid4())
+    pipeline_result = request.analysis or {}
+    gender = (request.gender or "female").lower()
+
+    openai_key = (os.getenv("OPENAI_API_KEY") or "").strip()
+    if not openai_key or openai_key in {"sk-...", "sk-"}:
+        return {"content": _fallback_chat("레포트 작성해줘", pipeline_result), "sessionId": session_id, "mode": "fallback"}
+
+    try:
+        from tools.skin_analyze import _flatten, aggregate_regions
+        from agent.graph import ChatSession
+
+        flat_scores = _flatten(pipeline_result)
+        has_any = any(v is not None for v in flat_scores.values())
+
+        if not has_any:
+            content = _llm_chat_with_analysis("피부 분석 결과를 한국어로 읽기 쉽게 요약해줘.", pipeline_result)
+            return {"content": content, "sessionId": session_id, "mode": "llm"}
+
+        regions = aggregate_regions(flat_scores)
+        top_concerns = regions[:3]
+        skin_scores = {
+            "raw_scores": flat_scores,
+            "age": pipeline_result.get("age"),
+            "gender_input": gender,
+            "valid_sagging": pipeline_result.get("valid_sagging"),
+        }
+
+        session = ChatSession(thread_id=session_id)
+        session.graph.update_state(session.config, {
+            "skin_scores": skin_scores,
+            "top_concerns": top_concerns,
+        })
+
+        # 1단계: 추천 + PubMed 근거 수집 (inject_recommend / inject_pubmed 자동 발동)
+        try:
+            session.send(f"성별은 {gender}이고 피부 분석이 완료됐어. 부위별 맞춤 시술 추천해줘.")
+        except Exception as exc:
+            print(f"[summary] recommend step failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+
+        # 2단계: 종합 레포트 생성 (final_report 노드 경유)
+        session.send("레포트 작성해줘")
+
+        final_text = session.final_answer
+        if not final_text or not final_text.strip():
+            final_text = _llm_chat_with_analysis("피부 분석 결과를 한국어로 요약해줘.", pipeline_result)
+
+        return {"content": final_text.strip(), "sessionId": session_id, "mode": "agent"}
+
+    except Exception as exc:
+        print(f"[summary] agent failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        try:
+            content = _llm_chat_with_analysis("피부 분석 결과를 한국어로 요약해줘.", pipeline_result)
+            return {"content": content, "sessionId": session_id, "mode": "llm_fallback"}
+        except Exception:
+            return {"content": _fallback_chat("레포트", pipeline_result), "sessionId": session_id, "mode": "fallback"}
 
 
 _ALLOWED_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}

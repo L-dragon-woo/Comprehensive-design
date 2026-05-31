@@ -1,21 +1,41 @@
 <script setup lang="ts">
 import { CircleDot, Droplets, Sun } from "lucide-vue-next"
-import { scoreBgColor, scoreColor } from "@/lib/skinai"
+import { computed } from "vue"
+import { scoreBgColor, scoreColor, type AnalysisMetric } from "@/lib/skinai"
 
 const props = defineProps<{
   overallScore: number
   skinType: string
   mainConcern: string
-  hydration: number
-  sebum: number
-  pores: number
+  metrics?: AnalysisMetric[]
+  hydration?: number
+  sebum?: number
+  pores?: number
 }>()
 
-const details = [
-  { label: "색소", score: props.hydration, icon: Droplets },
-  { label: "주름", score: props.sebum, icon: Sun },
-  { label: "피부결", score: props.pores, icon: CircleDot },
-]
+function avgByPrefix(prefix: string): number {
+  const matched = (props.metrics ?? []).filter((m) => m.id.startsWith(prefix)).map((m) => m.score)
+  return matched.length ? Math.round(matched.reduce((a, b) => a + b, 0) / matched.length) : 0
+}
+
+function scoreById(id: string): number {
+  return (props.metrics ?? []).find((m) => m.id === id)?.score ?? 0
+}
+
+const details = computed(() => {
+  if (props.metrics?.length) {
+    return [
+      { label: "색소", score: avgByPrefix("pigment"), icon: Droplets },
+      { label: "주름", score: avgByPrefix("wrinkle"), icon: Sun },
+      { label: "피부결", score: scoreById("homogenity_texture") || avgByPrefix("homogenity"), icon: CircleDot },
+    ]
+  }
+  return [
+    { label: "색소", score: props.hydration ?? 0, icon: Droplets },
+    { label: "주름", score: props.sebum ?? 0, icon: Sun },
+    { label: "피부결", score: props.pores ?? 0, icon: CircleDot },
+  ]
+})
 </script>
 
 <template>

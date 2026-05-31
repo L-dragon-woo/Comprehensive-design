@@ -33,7 +33,6 @@ const showSuggestions = ref(true)
 const messagesEnd = ref<HTMLElement | null>(null)
 const sessionId = ref<string | null>(null)
 const hasUserConsultation = computed(() => messages.value.some((message) => message.role === "user"))
-const metricScore = (id: string) => analysis?.metrics?.find((metric) => metric.id === id)?.score || 0
 
 async function scrollToBottom() {
   await nextTick()
@@ -94,9 +93,7 @@ function handleKeydown(event: KeyboardEvent) {
             :overall-score="analysis.overallScore || 0"
             :skin-type="analysis.skinType || '피부 타입 분석'"
             :main-concern="(analysis.concerns || []).join(', ')"
-            :hydration="metricScore('pigment')"
-            :sebum="metricScore('wrinkle')"
-            :pores="metricScore('texture')"
+            :metrics="analysis.metrics"
           />
           <ChatBubble v-for="message in messages" :key="message.id" :message="message" />
           <ChatTypingIndicator v-if="isLoading" />

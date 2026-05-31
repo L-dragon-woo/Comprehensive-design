@@ -7,18 +7,41 @@ import AppHeader from "@/components/AppHeader.vue"
 import BaseButton from "@/components/BaseButton.vue"
 import PageContainer from "@/components/PageContainer.vue"
 import ScoreRing from "@/components/ScoreRing.vue"
-import { getCurrentUser, getMyAnalysis } from "@/lib/api"
+import { apiFetch, getAccessToken, getCurrentUser, getMyAnalysis } from "@/lib/api"
 import { openPdfPreview } from "@/lib/pdf"
-import { getAnalysisNotes, getLastAnalysis, getLastAnalysisId, normalizeAnalysisResponse, saveAnalysisNotes, type AnalysisResult } from "@/lib/skinai"
+import { getAnalysisNotes, getLastAnalysis, getLastAnalysisId, normalizeAnalysisResponse, saveAnalysisNotes, scoreBgColor, scoreColor, type AnalysisMetric, type AnalysisResult } from "@/lib/skinai"
 
 const route = useRoute()
 const result = ref<AnalysisResult | null>(null)
 const loading = ref(false)
 const error = ref("")
-const icons = [Droplets, Sun, CircleDot]
 const analysisId = computed(() => (typeof route.params.id === "string" ? route.params.id : ""))
 const resolvedId = computed(() => analysisId.value || getLastAnalysisId() || "")
 
+const aiSummary = ref("")
+const aiSummaryLoading = ref(false)
+
+const metricGroups = computed(() => {
+  const metrics = result.value?.metrics ?? []
+  if (!metrics.length) return []
+  const order = ["종합", "색소", "주름", "균일도", "처짐"]
+  const map = new Map<string, AnalysisMetric[]>()
+  for (const m of metrics) {
+    const cat = m.category ?? "기타"
+    if (!map.has(cat)) map.set(cat, [])
+    map.get(cat)!.push(m)
+  }
+  const groups: Array<{ category: string; metrics: AnalysisMetric[] }> = []
+  for (const cat of order) {
+    if (map.has(cat)) groups.push({ category: cat, metrics: map.get(cat)! })
+  }
+  for (const [cat, items] of map) {
+    if (!order.includes(cat)) groups.push({ category: cat, metrics: items })
+  }
+  return groups
+})
+
+const icons = [Droplets, Sun, CircleDot]
 const notes = ref("")
 const notesSaved = ref(false)
 let notesSaveTimer: ReturnType<typeof setTimeout> | null = null
@@ -46,10 +69,36 @@ function downloadPdf() {
   })
 }
 
+async function fetchAiSummary(analysis: unknown) {
+  if (!getAccessToken()) return  // 비로그인 사용자는 호출 생략 (clearAuth 부작용 방지)
+  aiSummaryLoading.value = true
+  try {
+    const res = await apiFetch("/api/consultations/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: "이 분석 결과를 바탕으로 주요 피부 문제와 추천 시술, 관리 방법을 한국어로 읽기 쉽게 요약해줘.",
+        analysis,
+      }),
+    })
+    if (res.ok) {
+      const data = await res.json() as Record<string, unknown>
+      if (typeof data.content === "string" && data.content.trim()) {
+        aiSummary.value = data.content.trim()
+      }
+    }
+  } catch {
+    // 요약 실패 시 조용히 무시
+  } finally {
+    aiSummaryLoading.value = false
+  }
+}
+
 onMounted(async () => {
   if (!analysisId.value) {
     result.value = getLastAnalysis()
     loadNotes()
+    if (result.value?.rawAnalysis) fetchAiSummary(result.value.rawAnalysis)
     return
   }
 
@@ -58,6 +107,7 @@ onMounted(async () => {
     const saved = await getMyAnalysis(analysisId.value)
     result.value = normalizeAnalysisResponse(saved.analysis)
     loadNotes()
+    if (result.value?.rawAnalysis) fetchAiSummary(result.value.rawAnalysis)
   } catch (e) {
     error.value = e instanceof Error ? e.message : "분석 결과를 불러오지 못했습니다."
   } finally {
@@ -123,9 +173,44 @@ onMounted(async () => {
         </div>
       </section>
 
+      <!-- AI 종합 분석 요약 -->
+      <section v-if="aiSummaryLoading || aiSummary" class="py-4">
+        <h3 class="mb-4 flex items-center gap-2 text-lg font-semibold">
+          <Sparkles class="h-5 w-5 text-primary" />
+          AI 종합 분석
+        </h3>
+        <div class="rounded-2xl border border-primary/20 bg-primary/5 p-5 shadow-sm">
+          <div v-if="aiSummaryLoading" class="flex items-center gap-3 text-sm text-muted-foreground">
+            <div class="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            AI가 분석 결과를 정리하는 중...
+          </div>
+          <p v-else class="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{{ aiSummary }}</p>
+        </div>
+      </section>
+
+      <!-- 피부 지표 상세 -->
       <section class="py-4">
-        <h3 class="mb-4 text-lg font-semibold">피부 지표</h3>
-        <div class="space-y-3">
+        <h3 class="mb-4 text-lg font-semibold">피부 지표 상세</h3>
+        <div v-if="metricGroups.length" class="space-y-5">
+          <div v-for="group in metricGroups" :key="group.category">
+            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{{ group.category }}</p>
+            <div class="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+              <div v-for="(metric, idx) in group.metrics" :key="metric.id" :class="['px-4 py-3', idx > 0 && 'border-t border-border']">
+                <div class="mb-1.5 flex items-center justify-between gap-2">
+                  <span class="truncate text-sm font-medium">{{ metric.title }}</span>
+                  <span :class="['shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold', scoreBgColor(metric.score), scoreColor(metric.score)]">
+                    {{ metric.id === 'age' ? `${metric.score}세` : `${metric.score}점 · ${metric.status}` }}
+                  </span>
+                </div>
+                <div v-if="metric.id !== 'age'" class="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+                  <div :class="['h-full rounded-full transition-all duration-700', metric.score >= 80 ? 'bg-success' : metric.score >= 60 ? 'bg-primary' : metric.score >= 40 ? 'bg-warning' : 'bg-destructive']" :style="{ width: `${metric.score}%` }" />
+                </div>
+                <p v-if="metric.description" class="mt-1 text-xs text-muted-foreground">{{ metric.description }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-else class="space-y-3">
           <AnalysisCard v-for="(metric, i) in result.metrics || []" :key="metric.id" :icon="icons[i % icons.length]" icon-color="text-primary" icon-bg="bg-primary/10" :title="metric.title" :subtitle="metric.description" :value="metric.score" :value-label="metric.status" />
         </div>
       </section>

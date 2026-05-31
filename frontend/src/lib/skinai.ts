@@ -25,12 +25,22 @@ export interface HospitalApplication {
   submissionNote?: string
 }
 
+export type AnalysisMetric = {
+  id: string
+  title: string
+  score: number
+  status: string
+  description: string
+  category?: string
+}
+
 export type AnalysisResult = {
   overallScore?: number
   date?: string
   skinType?: string
   rawAnalysis?: unknown
-  metrics?: Array<{ id: string; title: string; score: number; status: string; description: string }>
+  aiSummary?: string
+  metrics?: AnalysisMetric[]
   concerns?: string[]
   treatments?: Array<{ name: string; match: string; reason: string; note: string }>
   recommendations?: string[]
@@ -122,14 +132,49 @@ export function normalizeAnalysisResponse(payload: unknown): AnalysisResult {
   const pigment = asRecord(source.pigment)
   const wrinkle = asRecord(source.wrinkle)
   const homogenity = asRecord(source.homogenity)
-  const aiModelScores: Record<string, number> = {}
+  const cheekSagging = asRecord(source.cheek_sagging)
+  const chinSagging = asRecord(source.chin_sagging)
 
+  // Build detailed per-region metrics from pipeline output
+  const pipelineMetrics: AnalysisMetric[] = []
+
+  if (typeof source.age === "number") {
+    const s = asNumber(source.age)
+    pipelineMetrics.push({ id: "age", title: "피부 나이", score: s, status: "참고", description: "AI가 추정한 피부 나이 (성별 입력 시 정확도 향상)", category: "종합" })
+  }
+  if (pigment.left !== undefined) { const s = asNumber(pigment.left); pipelineMetrics.push({ id: "pigment_left", title: "색소 (좌)", score: s, status: statusForScore(s), description: "좌측 볼 색소 균일도", category: "색소" }) }
+  if (pigment.right !== undefined) { const s = asNumber(pigment.right); pipelineMetrics.push({ id: "pigment_right", title: "색소 (우)", score: s, status: statusForScore(s), description: "우측 볼 색소 균일도", category: "색소" }) }
+
+  const wrinkleFields: Array<{ key: string; title: string }> = [
+    { key: "forehead", title: "이마/미간 주름" },
+    { key: "right_eye", title: "눈가 주름 (우)" },
+    { key: "left_eye", title: "눈가 주름 (좌)" },
+    { key: "nasolabial", title: "팔자 주름" },
+    { key: "perioral", title: "입가 주름" },
+    { key: "right_vol", title: "볼 주름 (우)" },
+    { key: "left_vol", title: "볼 주름 (좌)" },
+  ]
+  for (const { key, title } of wrinkleFields) {
+    if (wrinkle[key] !== undefined) {
+      const s = asNumber(wrinkle[key])
+      pipelineMetrics.push({ id: `wrinkle_${key}`, title, score: s, status: statusForScore(s), description: `${title} 상태`, category: "주름" })
+    }
+  }
+
+  if (homogenity.radiance !== undefined) { const s = asNumber(homogenity.radiance); pipelineMetrics.push({ id: "homogenity_radiance", title: "광채", score: s, status: statusForScore(s), description: "피부 광채 및 투명도", category: "균일도" }) }
+  if (homogenity.texture !== undefined) { const s = asNumber(homogenity.texture); pipelineMetrics.push({ id: "homogenity_texture", title: "피부결", score: s, status: statusForScore(s), description: "피부결 매끄러움", category: "균일도" }) }
+  if (cheekSagging.total !== undefined) { const s = asNumber(cheekSagging.total); pipelineMetrics.push({ id: "cheek_sagging", title: "볼 처짐", score: s, status: statusForScore(s), description: "볼 처짐 정도", category: "처짐" }) }
+  if (chinSagging.total !== undefined) { const s = asNumber(chinSagging.total); pipelineMetrics.push({ id: "chin_sagging", title: "턱 처짐", score: s, status: statusForScore(s), description: "턱 처짐 정도", category: "처짐" }) }
+
+  const aiModelScores: Record<string, number> = {}
   if (typeof source.age === "number") aiModelScores.age = asNumber(source.age)
   if (Object.keys(pigment).length) aiModelScores.pigment = averageScore(Object.values(pigment))
   if (Object.keys(wrinkle).length) aiModelScores.wrinkle = averageScore(Object.values(wrinkle))
   if (Object.keys(homogenity).length) aiModelScores.texture = averageScore(Object.values(homogenity))
 
-  const metrics = rawMetrics.length
+  const metrics: AnalysisMetric[] = pipelineMetrics.length
+    ? pipelineMetrics
+    : rawMetrics.length
     ? rawMetrics.map((metric, index) => {
         const item = asRecord(metric)
         const id = String(item.id || item.key || `metric-${index}`)

@@ -72,6 +72,8 @@ function downloadPdf() {
 async function fetchAiSummary(analysis: unknown) {
   aiSummaryLoading.value = true
   try {
+    // 1차: beauty-agent(PubMed) 엔드포인트 시도
+    let content = ""
     const res = await apiFetch("/api/analyses/summary", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -79,10 +81,26 @@ async function fetchAiSummary(analysis: unknown) {
     })
     if (res.ok) {
       const data = await res.json() as Record<string, unknown>
-      if (typeof data.content === "string" && data.content.trim()) {
-        aiSummary.value = data.content.trim()
+      if (typeof data.content === "string") content = data.content.trim()
+    }
+
+    // 2차: 신규 엔드포인트 미지원 시 기존 상담 API로 fallback
+    if (!content) {
+      const res2 = await apiFetch("/api/consultations/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "이 분석 결과를 바탕으로 주요 피부 문제와 추천 시술, 관리 방법을 한국어로 읽기 쉽게 요약해줘.",
+          analysis,
+        }),
+      })
+      if (res2.ok) {
+        const data2 = await res2.json() as Record<string, unknown>
+        if (typeof data2.content === "string") content = data2.content.trim()
       }
     }
+
+    if (content) aiSummary.value = content
   } catch {
     // 요약 실패 시 조용히 무시
   } finally {

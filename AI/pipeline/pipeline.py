@@ -99,15 +99,8 @@ class SkinPipeline:
 
     def __init__(self, config_path: str | Path, gender: str = None):
         print('\033[45mconfig.yaml 로드\033[0m')
-        config_path = Path(config_path).resolve()
         with open(config_path, encoding="utf-8") as f:
             self._cfg = yaml.safe_load(f)
-
-        configured_root = Path(self._cfg.get("root_dir", config_path.parent))
-        configured_model = configured_root / self._cfg["face_landmarker_model"]
-        if not configured_model.exists():
-            configured_root = config_path.parent
-        self._cfg["root_dir"] = str(configured_root)
 
         self._gender = (gender or self._cfg.get("gender", "male")).lower()
         print(f'\033[45mgender: {self._gender}\033[0m')
@@ -175,33 +168,7 @@ class SkinPipeline:
         print('\033[45m전처리\033[0m')
         crops = self._preprocessor.process(image_source)
         if crops is None:
-            return {
-                "status": "rejected",
-                "reject_reason": "face_not_detected",
-                "quality": getattr(self._preprocessor, "last_quality_report", None),
-                "age": None,
-                "pigment": {"left": None, "right": None},
-                "wrinkle": {sector: None for sector in ["forehead", "right_eye", "left_eye", "nasolabial", "perioral", "right_vol", "left_vol"]},
-                "homogenity": {"radiance": None, "texture": None},
-                "cheek_sagging": {"right": None, "left": None, "total": None},
-                "chin_sagging": {"right": None, "left": None, "total": None},
-                "valid_sagging": False,
-                "gender": self._gender,
-            }
-        if crops.get("rejected"):
-            return {
-                "status": "rejected",
-                "reject_reason": ",".join(crops.get("quality", {}).get("reasons", [])),
-                "quality": crops.get("quality"),
-                "age": None,
-                "pigment": {"left": None, "right": None},
-                "wrinkle": {sector: None for sector in ["forehead", "right_eye", "left_eye", "nasolabial", "perioral", "right_vol", "left_vol"]},
-                "homogenity": {"radiance": None, "texture": None},
-                "cheek_sagging": {"right": None, "left": None, "total": None},
-                "chin_sagging": {"right": None, "left": None, "total": None},
-                "valid_sagging": False,
-                "gender": self._gender,
-            }
+            return None   # 얼굴 미검출
 
         # EfficientNet 예측
         print('\033[45m--- EfficientNet ---\033[0m')
@@ -227,8 +194,6 @@ class SkinPipeline:
             sagging_result = {"cheek": null, "chin": null}
 
         return {
-            "status":        "completed",
-            "quality":       crops.get("quality"),
             "age":           age,
             "pigment":       pigment,
             "wrinkle":       wrinkle,

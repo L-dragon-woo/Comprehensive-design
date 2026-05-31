@@ -34,17 +34,3 @@ sagging:
     female: inference_models/chin-female_params.json
 
 output_dir: inference_results
-
-# Input quality gate. These defaults reject images where the models are likely
-# to hallucinate confident skin scores: low resolution, blur, bad exposure,
-# tiny/cropped face, or extreme pose.
-quality_gate:
-  min_short_side: 480
-  min_brightness: 45.0
-  max_brightness: 220.0
-  min_laplacian_var: 45.0
-  min_face_area_ratio: 0.12
-  max_face_area_ratio: 0.85
-  max_abs_yaw_rad: 0.35
-  max_abs_pitch_rad: 0.35
-  max_abs_roll_rad: 0.45

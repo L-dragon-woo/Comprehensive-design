@@ -30,7 +30,6 @@ import mediapipe as mp
 from mediapipe.tasks.python import vision
 from mediapipe.tasks.python.vision import face_landmarker
 from mediapipe.tasks.python.core.base_options import BaseOptions
-from quality_gate import assess_image_quality, assess_landmark_quality, merge_quality_reports
 
 
 # ── 얼굴 마스킹 인덱스 (age / wrinkle 공용) ──────────────────────────────────
@@ -367,7 +366,6 @@ class FacePreprocessor:
 
     def __init__(self, face_landmarker_model: str):
         self._landmarker = _init_landmarker(face_landmarker_model)
-        self.last_quality_report = None
 
     def process(self, image_source,
                 apply_masking: bool = _DEBUG_APPLY_MASKING,
@@ -395,17 +393,10 @@ class FacePreprocessor:
         else:
             bgr = image_source  # 이미 BGR numpy
 
-        image_quality = assess_image_quality(bgr)
-        self.last_quality_report = image_quality
-
         # MediaPipe 검출 (원본 이미지에서 1회)
         mp_img = _bgr_to_mp_image(bgr)
         result = self._landmarker.detect(mp_img)
         if not result.face_landmarks:
-            self.last_quality_report = merge_quality_reports(
-                image_quality,
-                {"acceptable": False, "reasons": ["face_not_detected"], "metrics": {}},
-            )
             return None
 
         R = np.asarray(result.facial_transformation_matrixes[0][:3, :3])
@@ -416,27 +407,6 @@ class FacePreprocessor:
         h, w = bgr.shape[:2]
         
         coords = np.array([_get_coord(landmarks, i, w, h) for i in range(len(landmarks))], np.int32)
-
-        landmark_quality = assess_landmark_quality(
-            coords=coords,
-            image_shape=bgr.shape[:2],
-            face_oval_indices=_FACE_OVAL,
-            yaw=yaw,
-            pitch=pitch,
-            roll=roll,
-        )
-        quality = merge_quality_reports(image_quality, landmark_quality)
-        self.last_quality_report = quality
-
-        if not quality["acceptable"]:
-            return {
-                "rejected": True,
-                "quality": quality,
-                "yaw": yaw,
-                "pitch": pitch,
-                "roll": roll,
-                "valid_sagging": False,
-            }
 
         if apply_rotation:
             input_bgr, coords = _compute_rotation(bgr, coords, landmarks)
@@ -461,8 +431,6 @@ class FacePreprocessor:
         sagging_rgb, yaw_s, pitch_s, valid_sagging = _make_sagging_image(input_bgr, self._landmarker)
 
         return {
-            "rejected":      False,
-            "quality":       quality,
             "age_crop":      age_crop,
             "pigment_crops": pigment_crops,
             "wrinkle_crops": wrinkle_crops,

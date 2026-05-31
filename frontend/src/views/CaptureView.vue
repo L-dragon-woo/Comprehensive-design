@@ -20,6 +20,9 @@ const canvas = ref<HTMLCanvasElement | null>(null)
 const capturedImage = ref<string | null>(null)
 const error = ref("")
 const loading = ref(false)
+const loadingProgress = ref(0)
+const loadingMessage = ref("이미지를 준비하는 중입니다")
+const loadingTipIndex = ref(0)
 const facingMode = ref<"user" | "environment">("user")
 
 const faceDetected = ref(false)
@@ -30,6 +33,58 @@ const faceWarningShown = ref(false)
 let stream: MediaStream | null = null
 let faceDetector: InstanceType<NonNullable<typeof window.FaceDetector>> | null = null
 let faceCheckInterval: ReturnType<typeof setInterval> | null = null
+let loadingProgressTimer: ReturnType<typeof setInterval> | null = null
+let loadingTipTimer: ReturnType<typeof setInterval> | null = null
+let loadingProgressCap = 88
+
+const loadingTips = [
+  "자외선 차단제는 흐린 날에도 바르는 것이 색소 관리에 도움이 됩니다.",
+  "세안 후 3분 안에 보습제를 바르면 피부 수분 손실을 줄일 수 있습니다.",
+  "레티놀이나 고기능 성분은 처음부터 매일 쓰기보다 주 2~3회로 시작하는 것이 좋습니다.",
+  "피부 장벽이 예민한 날에는 각질 관리보다 보습과 진정에 집중해 주세요.",
+  "눈가와 입가는 얇은 부위라 문지르기보다 가볍게 두드려 바르는 습관이 좋습니다.",
+  "시술 계획은 AI 분석을 참고하되 실제 피부 상태는 대면 상담으로 확인하는 것이 안전합니다.",
+]
+
+function clearLoadingTimers() {
+  if (loadingProgressTimer) clearInterval(loadingProgressTimer)
+  if (loadingTipTimer) clearInterval(loadingTipTimer)
+  loadingProgressTimer = null
+  loadingTipTimer = null
+}
+
+function startLoading(message: string) {
+  clearLoadingTimers()
+  loading.value = true
+  loadingProgress.value = 4
+  loadingProgressCap = 88
+  loadingMessage.value = message
+  loadingTipIndex.value = 0
+
+  loadingProgressTimer = setInterval(() => {
+    if (loadingProgress.value >= loadingProgressCap) return
+    const increment = loadingProgress.value < 40 ? 3 : loadingProgress.value < 75 ? 2 : 1
+    loadingProgress.value = Math.min(loadingProgressCap, loadingProgress.value + increment)
+  }, 420)
+
+  loadingTipTimer = setInterval(() => {
+    loadingTipIndex.value = (loadingTipIndex.value + 1) % loadingTips.length
+  }, 3600)
+}
+
+function updateLoading(message: string, cap: number) {
+  loadingMessage.value = message
+  loadingProgressCap = cap
+  loadingProgress.value = Math.max(loadingProgress.value, Math.min(cap - 6, loadingProgress.value + 8))
+}
+
+async function completeLoading() {
+  loadingMessage.value = "분석 결과를 정리했습니다"
+  loadingProgressCap = 100
+  loadingProgress.value = 100
+  clearLoadingTimers()
+  await new Promise((resolve) => setTimeout(resolve, 350))
+}
 
 async function initFaceDetector() {
   if (typeof window.FaceDetector !== "undefined") {
@@ -131,24 +186,53 @@ async function compressImage(dataUrl: string, maxSizeMb = 5): Promise<Blob> {
 async function analyze() {
   if (!capturedImage.value) return
   const imageDataUrl = capturedImage.value
-  loading.value = true
-  const blob = await compressImage(imageDataUrl)
-  const formData = new FormData()
-  formData.append("image", blob, "capture.jpg")
-  formData.append("gender", "female")
+  startLoading("촬영 이미지를 분석용으로 준비하는 중입니다")
   try {
+    const blob = await compressImage(imageDataUrl)
+    updateLoading("피부 분석 모델에 이미지를 전달하는 중입니다", 62)
+    const formData = new FormData()
+    formData.append("image", blob, "capture.jpg")
+    formData.append("gender", "female")
+
     const res = await apiFetch("/api/analyses", { method: "POST", body: formData })
     if (!res.ok) throw new Error(`분석 요청에 실패했습니다. (${res.status})`)
-    const data = await res.json()
+    const data = await res.json() as Record<string, unknown>
     const analysisId = (data as Record<string, unknown>).analysisId || (data as Record<string, unknown>).id
     if (typeof analysisId === "string" && analysisId) {
       saveLastAnalysisId(analysisId)
       saveAnalysisImage(analysisId, imageDataUrl)
     }
+
+    updateLoading("AI 종합 분석과 PubMed 근거를 정리하는 중입니다", 96)
+    try {
+      const summaryRes = await apiFetch("/api/analyses/summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ analysis: data, gender: "female", analysisId: typeof analysisId === "string" ? analysisId : undefined }),
+      })
+      if (summaryRes.ok) {
+        const summary = await summaryRes.json() as Record<string, unknown>
+        if (typeof summary.content === "string" && summary.content.trim()) {
+          data.aiSummary = summary.content.trim()
+          data.aiSummaryMode = summary.mode
+          const result = data.result
+          if (result && typeof result === "object") {
+            const nestedResult = result as Record<string, unknown>
+            nestedResult.aiSummary = data.aiSummary
+            nestedResult.aiSummaryMode = data.aiSummaryMode
+          }
+        }
+      }
+    } catch {
+      // 요약 저장 실패는 분석 결과 진입을 막지 않습니다.
+    }
+
     saveLastAnalysis(data, imageDataUrl)
+    await completeLoading()
     router.push("/result")
   } catch (e) {
     error.value = e instanceof Error ? e.message : "분석을 완료하지 못했습니다."
+    clearLoadingTimers()
   } finally {
     loading.value = false
   }
@@ -158,7 +242,10 @@ onMounted(async () => {
   await initFaceDetector()
   await startCamera()
 })
-onBeforeUnmount(stopCamera)
+onBeforeUnmount(() => {
+  clearLoadingTimers()
+  stopCamera()
+})
 </script>
 
 <template>
@@ -255,6 +342,37 @@ onBeforeUnmount(stopCamera)
           <SwitchCamera class="h-6 w-6" />
           <span class="sr-only">카메라 전환</span>
         </BaseButton>
+      </div>
+    </div>
+
+    <div v-if="loading" class="fixed inset-0 z-50 flex items-center justify-center bg-background/95 px-5 backdrop-blur-md">
+      <div class="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl">
+        <div class="mb-5 flex items-center gap-4">
+          <div class="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-primary/10">
+            <div class="absolute inset-2 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <span class="text-sm font-bold text-primary">{{ loadingProgress }}%</span>
+          </div>
+          <div class="min-w-0 flex-1">
+            <p class="text-xs font-semibold text-primary">AI 피부 분석 중</p>
+            <h2 class="mt-1 break-words text-base font-bold text-foreground">{{ loadingMessage }}</h2>
+          </div>
+        </div>
+
+        <div class="mb-5 h-2.5 overflow-hidden rounded-full bg-secondary">
+          <div
+            class="h-full rounded-full bg-primary transition-all duration-500"
+            :style="{ width: `${loadingProgress}%` }"
+          />
+        </div>
+
+        <div class="rounded-2xl bg-secondary p-4">
+          <p class="mb-1 text-xs font-semibold text-primary">피부관리 팁</p>
+          <p class="break-words text-sm leading-relaxed text-foreground/80">{{ loadingTips[loadingTipIndex] }}</p>
+        </div>
+
+        <p class="mt-4 text-center text-xs leading-relaxed text-muted-foreground">
+          분석 모델과 의학 근거를 함께 정리하고 있어 잠시 시간이 걸릴 수 있습니다.
+        </p>
       </div>
     </div>
   </div>

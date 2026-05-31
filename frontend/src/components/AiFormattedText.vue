@@ -38,6 +38,12 @@ function parseStep(line: string) {
   }
 }
 
+function shouldSkipSection(section: AiSection | null) {
+  if (!section) return false
+  const label = `${section.step} ${section.title}`.toLowerCase()
+  return /step\s*4/.test(label) || /q\s*&?\s*a|qna|faq|질문|답변/.test(label)
+}
+
 function parseTitleScore(text: string) {
   let title = clean(text)
   const scoreMatch = title.match(/(\d+(?:\.\d+)?)\s*점/)
@@ -52,7 +58,7 @@ function parseTitleScore(text: string) {
 }
 
 function pushCard(section: AiSection | null, card: AiCard | null) {
-  if (section && card && (card.title || card.lines.length)) {
+  if (section && !shouldSkipSection(section) && card && (card.title || card.lines.length)) {
     section.cards.push({ ...card, lines: card.lines.filter(Boolean) })
   }
 }
@@ -79,7 +85,7 @@ const parsed = computed(() => {
       currentCard = null
       const step = parseStep(rawLine)
       currentSection = { ...step, cards: [], notes: [] }
-      sections.push(currentSection)
+      if (!shouldSkipSection(currentSection)) sections.push(currentSection)
       continue
     }
 
@@ -95,6 +101,8 @@ const parsed = computed(() => {
     if (bulletMatch) {
       const bullet = clean(bulletMatch[1])
       const bulletTitle = bullet.match(/^(.+?)(?:[:：]\s+)(.+)$/)
+
+      if (shouldSkipSection(currentSection)) continue
 
       if (!currentSection) {
         intro.push(bullet)
@@ -116,6 +124,7 @@ const parsed = computed(() => {
 
     const numberedMatch = rawLine.match(/^\d+[.)]\s+(.+)$/)
     if (numberedMatch) {
+      if (shouldSkipSection(currentSection)) continue
       if (!currentSection) intro.push(clean(numberedMatch[1]))
       else if (currentCard) currentCard.lines.push(clean(numberedMatch[1]))
       else currentSection.notes.push(clean(numberedMatch[1]))
@@ -123,6 +132,7 @@ const parsed = computed(() => {
     }
 
     const text = clean(rawLine)
+    if (shouldSkipSection(currentSection)) continue
     if (!currentSection) intro.push(text)
     else if (currentCard) currentCard.lines.push(text)
     else if (sections.length) currentSection.notes.push(text)
@@ -149,12 +159,12 @@ function cardAccent(title: string) {
 </script>
 
 <template>
-  <article :class="compact ? 'space-y-3 text-sm' : 'space-y-5 text-sm'">
+  <article :class="['max-w-full overflow-hidden text-sm [overflow-wrap:anywhere]', compact ? 'space-y-3' : 'space-y-5']">
     <header v-if="parsed.title || parsed.intro.length" class="space-y-2">
       <h4 v-if="parsed.title && !compact" class="text-base font-bold text-foreground">
         {{ parsed.title }}
       </h4>
-      <p v-for="(line, index) in parsed.intro" :key="index" class="leading-relaxed text-muted-foreground">
+      <p v-for="(line, index) in parsed.intro" :key="index" class="max-w-full break-words leading-relaxed text-muted-foreground">
         {{ line }}
       </p>
     </header>
@@ -162,16 +172,16 @@ function cardAccent(title: string) {
     <section
       v-for="section in parsed.sections"
       :key="`${section.step}-${section.title}`"
-      :class="['rounded-xl border p-4 shadow-sm', compact ? 'space-y-3' : 'space-y-4', sectionClass(section.title)]"
+      :class="['max-w-full overflow-hidden rounded-xl border p-4 shadow-sm', compact ? 'space-y-3' : 'space-y-4', sectionClass(section.title)]"
     >
-      <div class="flex items-center gap-2">
+      <div class="flex min-w-0 items-start gap-2">
         <span class="rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-bold text-primary shadow-sm">
           {{ section.step }}
         </span>
-        <h5 class="font-bold text-foreground">{{ section.title }}</h5>
+        <h5 class="min-w-0 flex-1 break-words font-bold leading-snug text-foreground">{{ section.title }}</h5>
       </div>
 
-      <p v-for="(note, index) in section.notes" :key="index" class="leading-relaxed text-foreground/80">
+      <p v-for="(note, index) in section.notes" :key="index" class="max-w-full break-words leading-relaxed text-foreground/80">
         {{ note }}
       </p>
 
@@ -179,13 +189,13 @@ function cardAccent(title: string) {
         <div
           v-for="(card, index) in section.cards"
           :key="`${card.title}-${index}`"
-          class="overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm"
+          class="max-w-full overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm"
         >
-          <div class="flex">
+          <div class="flex min-w-0">
             <div :class="['w-1 shrink-0', cardAccent(section.title)]" />
             <div class="min-w-0 flex-1 px-4 py-3">
-              <div class="mb-2 flex items-start justify-between gap-3">
-                <h6 class="min-w-0 font-semibold leading-snug text-foreground">
+              <div class="mb-2 flex min-w-0 flex-wrap items-start justify-between gap-2">
+                <h6 class="min-w-0 flex-1 basis-40 break-words font-semibold leading-snug text-foreground">
                   {{ card.title || "요약" }}
                 </h6>
                 <span v-if="card.score" class="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">
@@ -196,7 +206,7 @@ function cardAccent(title: string) {
               <ul v-if="card.lines.length" class="space-y-1.5">
                 <li v-for="(line, lineIndex) in card.lines" :key="lineIndex" class="flex gap-2 leading-relaxed text-foreground/85">
                   <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/60" />
-                  <span>{{ line }}</span>
+                  <span class="min-w-0 flex-1 break-words">{{ line }}</span>
                 </li>
               </ul>
             </div>
@@ -205,8 +215,8 @@ function cardAccent(title: string) {
       </div>
     </section>
 
-    <footer v-if="parsed.closing.length" class="space-y-2 rounded-xl bg-secondary px-4 py-3 text-foreground/80">
-      <p v-for="(line, index) in parsed.closing" :key="index" class="leading-relaxed">
+    <footer v-if="parsed.closing.length" class="max-w-full space-y-2 overflow-hidden rounded-xl bg-secondary px-4 py-3 text-foreground/80">
+      <p v-for="(line, index) in parsed.closing" :key="index" class="break-words leading-relaxed">
         {{ line }}
       </p>
     </footer>

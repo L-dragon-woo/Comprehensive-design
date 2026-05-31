@@ -252,6 +252,7 @@ export function normalizeAnalysisResponse(payload: unknown): AnalysisResult {
     date: String(source.date || root.date || new Intl.DateTimeFormat("ko-KR").format(new Date())),
     skinType: normalizeSkinType(source.skinType),
     rawAnalysis: source,
+    aiSummary: typeof source.aiSummary === "string" ? source.aiSummary : typeof root.aiSummary === "string" ? root.aiSummary : undefined,
     imageDataUrl: typeof source.imageDataUrl === "string" ? source.imageDataUrl : typeof root.imageDataUrl === "string" ? root.imageDataUrl : undefined,
     metrics,
     concerns,

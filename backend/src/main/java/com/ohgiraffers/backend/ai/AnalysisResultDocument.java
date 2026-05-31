@@ -35,6 +35,10 @@ public class AnalysisResultDocument {
         return analysis;
     }
 
+    public void setAnalysis(Map<String, Object> analysis) {
+        this.analysis = analysis;
+    }
+
     public Instant getCreatedAt() {
         return createdAt;
     }

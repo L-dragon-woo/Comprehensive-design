@@ -72,6 +72,11 @@ function downloadPdf() {
 }
 
 async function fetchAiSummary(analysis: unknown) {
+  if (result.value?.aiSummary) {
+    aiSummary.value = result.value.aiSummary
+    return
+  }
+
   aiSummaryLoading.value = true
   try {
     // 1차: beauty-agent(PubMed) 엔드포인트 시도
@@ -79,7 +84,7 @@ async function fetchAiSummary(analysis: unknown) {
     const res = await apiFetch("/api/analyses/summary", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ analysis, gender: "female" }),
+      body: JSON.stringify({ analysis, gender: "female", analysisId: resolvedId.value || undefined }),
     })
     if (res.ok) {
       const data = await res.json() as Record<string, unknown>
@@ -102,7 +107,10 @@ async function fetchAiSummary(analysis: unknown) {
       }
     }
 
-    if (content) aiSummary.value = content
+    if (content) {
+      aiSummary.value = content
+      if (result.value) result.value.aiSummary = content
+    }
   } catch {
     // 요약 실패 시 조용히 무시
   } finally {
@@ -114,8 +122,9 @@ onMounted(async () => {
   if (!analysisId.value) {
     const cached = getLastAnalysis()
     // Re-normalize so updated metric extraction logic applies to cached data
-    result.value = cached?.rawAnalysis ? { ...normalizeAnalysisResponse(cached.rawAnalysis), imageDataUrl: cached.imageDataUrl } : cached
+    result.value = cached?.rawAnalysis ? { ...normalizeAnalysisResponse(cached.rawAnalysis), imageDataUrl: cached.imageDataUrl, aiSummary: cached.aiSummary } : cached
     loadNotes()
+    if (result.value?.aiSummary) aiSummary.value = result.value.aiSummary
     if (result.value?.rawAnalysis) fetchAiSummary(result.value.rawAnalysis)
     return
   }
@@ -128,6 +137,7 @@ onMounted(async () => {
       imageDataUrl: getAnalysisImage(analysisId.value) || undefined,
     }
     loadNotes()
+    if (result.value.aiSummary) aiSummary.value = result.value.aiSummary
     if (result.value?.rawAnalysis) fetchAiSummary(result.value.rawAnalysis)
   } catch (e) {
     error.value = e instanceof Error ? e.message : "분석 결과를 불러오지 못했습니다."

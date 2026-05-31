@@ -318,6 +318,36 @@ def _pipeline_result_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
     return nested if isinstance(nested, dict) else analysis
 
 
+def _strip_qna_section(content: str) -> str:
+    """Remove optional QnA/follow-up sections from generated analysis reports."""
+    lines = content.replace("\r\n", "\n").split("\n")
+    kept: list[str] = []
+    skipping = False
+
+    for line in lines:
+        normalized = line.strip().lower()
+        starts_step = re.match(r"^#{0,6}\s*\[?\s*step\s*\d+\s*\]?", normalized)
+        is_qna = (
+            re.match(r"^#{0,6}\s*\[?\s*step\s*4\s*\]?", normalized) is not None
+            or "qna" in normalized
+            or "q&a" in normalized
+            or "질문" in normalized
+            or "답변" in normalized
+        )
+
+        if is_qna:
+            skipping = True
+            continue
+
+        if skipping and starts_step:
+            skipping = False
+
+        if not skipping:
+            kept.append(line)
+
+    return "\n".join(kept).strip()
+
+
 def _mock_analysis(gender: str) -> dict[str, Any]:
     return {
         "gender": gender,
@@ -421,14 +451,18 @@ def analyses_summary(request: AnalysisSummaryRequest) -> dict[str, Any]:
             print(f"[summary] recommend step failed: {type(exc).__name__}: {exc}", file=sys.stderr)
 
         # 2단계: 종합 레포트 생성 (final_report 노드 경유)
-        session.send("Write the final report summary. Include PubMed evidence and PMID when available.")
+        session.send(
+            "Write the final skin analysis report summary only. "
+            "Include diagnosis, recommended treatments, care guidance, and PubMed evidence with PMID when available. "
+            "Do not include QnA, FAQ, follow-up questions, or any Step 4 question-answer section."
+        )
 
         final_text = session.final_answer
         if not final_text or not final_text.strip():
             final_text = _llm_chat_with_analysis("피부 분석 결과를 한국어로 요약해줘.", pipeline_result)
 
         return {
-            "content": final_text.strip(),
+            "content": _strip_qna_section(final_text).strip(),
             "sessionId": session_id,
             "mode": "agent_pubmed" if session.pubmed_recommendations else "agent",
         }

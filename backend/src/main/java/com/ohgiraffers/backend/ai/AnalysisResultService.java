@@ -1,6 +1,7 @@
 package com.ohgiraffers.backend.ai;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -27,5 +28,28 @@ public class AnalysisResultService {
     public AnalysisResultDocument get(String username, String id) {
         return repository.findByIdAndUsername(id, username)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "analysis result not found"));
+    }
+
+    public AnalysisResultDocument saveAiSummary(String username, String id, String content, String mode) {
+        AnalysisResultDocument document = get(username, id);
+        Map<String, Object> analysis = new LinkedHashMap<>(document.getAnalysis());
+        analysis.put("aiSummary", content);
+        analysis.put("aiSummaryMode", mode);
+        analysis.put("aiSummaryUpdatedAt", Instant.now().toString());
+
+        Object nested = analysis.get("result");
+        if (nested instanceof Map<?, ?> nestedMap) {
+            Map<String, Object> result = new LinkedHashMap<>();
+            nestedMap.forEach((key, value) -> {
+                if (key != null) result.put(String.valueOf(key), value);
+            });
+            result.put("aiSummary", content);
+            result.put("aiSummaryMode", mode);
+            result.put("aiSummaryUpdatedAt", Instant.now().toString());
+            analysis.put("result", result);
+        }
+
+        document.setAnalysis(analysis);
+        return repository.save(document);
     }
 }

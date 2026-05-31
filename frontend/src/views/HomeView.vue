@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowRight, Camera, ChevronRight, FileText, MapPin, MessageCircle, Shield, Sparkles } from "lucide-vue-next"
+import { ArrowRight, Camera, ChevronRight, Eye, FileText, MapPin, MessageCircle, Shield, Sparkles } from "lucide-vue-next"
 import { computed, onMounted, onUnmounted, ref } from "vue"
 import AppHeader from "@/components/AppHeader.vue"
 import BaseButton from "@/components/BaseButton.vue"
@@ -144,7 +144,7 @@ onUnmounted(() => {
             class="flex-1"
           >
             <BaseButton variant="outline" size="sm" class="w-full">
-              <MapPin class="h-3.5 w-3.5" />
+              <Eye class="h-3.5 w-3.5" />
               결과 보기
             </BaseButton>
           </RouterLink>

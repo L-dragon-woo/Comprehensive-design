@@ -51,14 +51,14 @@ const analysisStorageKey = "skinai:last-analysis"
 const lastAnalysisIdKey = "skinai:last-analysis-id"
 const notesStorageKey = "skinai:analysis-notes"
 
-const metricLabels: Record<string, { title: string; status: string; description: string }> = {
-  hydration: { title: "수분", status: "관리 필요", description: "피부 수분 밸런스를 확인하세요" },
-  sebum: { title: "유분", status: "보통", description: "유분과 번들거림 상태를 확인하세요" },
-  pores: { title: "모공", status: "보통", description: "모공과 피부결 상태를 확인하세요" },
-  pigment: { title: "색소", status: "관리 필요", description: "잡티와 기미 가능성을 확인하세요" },
-  wrinkle: { title: "주름", status: "관리 필요", description: "주름과 탄력 상태를 확인하세요" },
-  texture: { title: "피부결", status: "보통", description: "광채와 피부결 균일도를 확인하세요" },
-  age: { title: "피부 나이", status: "참고", description: "AI가 추정한 피부 나이입니다" },
+const metricLabels: Record<string, { title: string; status: string; description: string; category: string }> = {
+  hydration: { title: "수분", status: "관리 필요", description: "피부 수분 밸런스를 확인하세요", category: "피부 상태" },
+  sebum: { title: "유분", status: "보통", description: "유분과 번들거림 상태를 확인하세요", category: "피부 상태" },
+  pores: { title: "모공", status: "보통", description: "모공과 피부결 상태를 확인하세요", category: "피부 상태" },
+  pigment: { title: "색소", status: "관리 필요", description: "잡티와 기미 가능성을 확인하세요", category: "색소" },
+  wrinkle: { title: "주름", status: "관리 필요", description: "주름과 탄력 상태를 확인하세요", category: "주름" },
+  texture: { title: "피부결", status: "보통", description: "광채와 피부결 균일도를 확인하세요", category: "균일도" },
+  age: { title: "피부 나이", status: "참고", description: "AI가 추정한 피부 나이입니다", category: "종합" },
 }
 
 const concernLabels: Record<string, string> = {
@@ -190,12 +190,13 @@ export function normalizeAnalysisResponse(payload: unknown): AnalysisResult {
           score,
           status: String(item.status || meta.status || statusForScore(score)),
           description: String(item.description || meta.description),
+          category: String(item.category || meta.category || "기타"),
         }
       })
     : Object.entries(Object.keys(scores).length ? scores : aiModelScores).map(([id, value]) => {
         const score = asNumber(value)
-        const meta = metricLabels[id] || { title: id, status: statusForScore(score), description: "AI 분석 항목" }
-        return { id, title: meta.title, score, status: statusForScore(score), description: meta.description }
+        const meta = metricLabels[id] || { title: id, status: statusForScore(score), description: "AI 분석 항목", category: "기타" }
+        return { id, title: meta.title, score, status: statusForScore(score), description: meta.description, category: meta.category }
       })
 
   const concerns =

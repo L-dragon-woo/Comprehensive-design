@@ -7,7 +7,7 @@ import AppHeader from "@/components/AppHeader.vue"
 import BaseButton from "@/components/BaseButton.vue"
 import PageContainer from "@/components/PageContainer.vue"
 import ScoreRing from "@/components/ScoreRing.vue"
-import { apiFetch, getAccessToken, getCurrentUser, getMyAnalysis } from "@/lib/api"
+import { apiFetch, getCurrentUser, getMyAnalysis } from "@/lib/api"
 import { openPdfPreview } from "@/lib/pdf"
 import { getAnalysisNotes, getLastAnalysis, getLastAnalysisId, normalizeAnalysisResponse, saveAnalysisNotes, scoreBgColor, scoreColor, type AnalysisMetric, type AnalysisResult } from "@/lib/skinai"
 
@@ -70,7 +70,6 @@ function downloadPdf() {
 }
 
 async function fetchAiSummary(analysis: unknown) {
-  if (!getAccessToken()) return  // 비로그인 사용자는 호출 생략 (clearAuth 부작용 방지)
   aiSummaryLoading.value = true
   try {
     const res = await apiFetch("/api/consultations/messages", {
@@ -96,7 +95,9 @@ async function fetchAiSummary(analysis: unknown) {
 
 onMounted(async () => {
   if (!analysisId.value) {
-    result.value = getLastAnalysis()
+    const cached = getLastAnalysis()
+    // Re-normalize so updated metric extraction logic applies to cached data
+    result.value = cached?.rawAnalysis ? normalizeAnalysisResponse(cached.rawAnalysis) : cached
     loadNotes()
     if (result.value?.rawAnalysis) fetchAiSummary(result.value.rawAnalysis)
     return

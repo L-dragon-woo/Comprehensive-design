@@ -4,7 +4,7 @@ import { onBeforeUnmount, onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
 import BaseButton from "@/components/BaseButton.vue"
 import { apiFetch } from "@/lib/api"
-import { saveLastAnalysis, saveLastAnalysisId } from "@/lib/skinai"
+import { saveAnalysisImage, saveLastAnalysis, saveLastAnalysisId } from "@/lib/skinai"
 
 declare global {
   interface Window {
@@ -130,8 +130,9 @@ async function compressImage(dataUrl: string, maxSizeMb = 5): Promise<Blob> {
 
 async function analyze() {
   if (!capturedImage.value) return
+  const imageDataUrl = capturedImage.value
   loading.value = true
-  const blob = await compressImage(capturedImage.value)
+  const blob = await compressImage(imageDataUrl)
   const formData = new FormData()
   formData.append("image", blob, "capture.jpg")
   formData.append("gender", "female")
@@ -140,8 +141,11 @@ async function analyze() {
     if (!res.ok) throw new Error(`분석 요청에 실패했습니다. (${res.status})`)
     const data = await res.json()
     const analysisId = (data as Record<string, unknown>).analysisId || (data as Record<string, unknown>).id
-    if (typeof analysisId === "string" && analysisId) saveLastAnalysisId(analysisId)
-    saveLastAnalysis(data)
+    if (typeof analysisId === "string" && analysisId) {
+      saveLastAnalysisId(analysisId)
+      saveAnalysisImage(analysisId, imageDataUrl)
+    }
+    saveLastAnalysis(data, imageDataUrl)
     router.push("/result")
   } catch (e) {
     error.value = e instanceof Error ? e.message : "분석을 완료하지 못했습니다."

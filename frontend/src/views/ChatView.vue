@@ -96,6 +96,7 @@ function handleKeydown(event: KeyboardEvent) {
             :metrics="analysis.metrics"
             :concerns="analysis.concerns"
             :treatments="analysis.treatments"
+            :image-data-url="analysis.imageDataUrl"
           />
           <ChatBubble v-for="message in messages" :key="message.id" :message="message" />
           <ChatTypingIndicator v-if="isLoading" />

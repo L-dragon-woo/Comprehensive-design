@@ -54,6 +54,7 @@ function previewPdf() {
     analysis: currentAnalysis.value,
     user: getCurrentUser(),
     notes: submitNote.value,
+    capturedImageDataUrl: currentAnalysis.value.imageDataUrl,
   })
 }
 const kakaoMapAppKey = import.meta.env.VITE_KAKAO_JAVASCRIPT_KEY || import.meta.env.VITE_KAKAO_MAP_APP_KEY || ""

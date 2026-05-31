@@ -10,6 +10,7 @@ const props = defineProps<{
   metrics?: AnalysisMetric[]
   concerns?: string[]
   treatments?: Array<{ name: string; match: string; reason: string; note: string }>
+  imageDataUrl?: string
   hydration?: number
   sebum?: number
   pores?: number
@@ -53,7 +54,8 @@ const displayConcerns = computed(() => (props.concerns ?? []).slice(0, 4))
   <div class="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
     <!-- 헤더: 점수 + 피부 타입 -->
     <div class="flex items-center gap-4 p-4 pb-3">
-      <div :class="['flex h-14 w-14 shrink-0 items-center justify-center rounded-full', scoreBgColor(overallScore)]">
+      <img v-if="imageDataUrl" :src="imageDataUrl" alt="분석 얼굴 사진" class="h-14 w-14 shrink-0 rounded-2xl object-cover ring-1 ring-border" />
+      <div v-else :class="['flex h-14 w-14 shrink-0 items-center justify-center rounded-full', scoreBgColor(overallScore)]">
         <span :class="['text-xl font-bold', scoreColor(overallScore)]">{{ overallScore }}</span>
       </div>
       <div class="min-w-0 flex-1">

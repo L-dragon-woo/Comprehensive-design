@@ -40,6 +40,7 @@ export type AnalysisResult = {
   skinType?: string
   rawAnalysis?: unknown
   aiSummary?: string
+  imageDataUrl?: string
   metrics?: AnalysisMetric[]
   concerns?: string[]
   treatments?: Array<{ name: string; match: string; reason: string; note: string }>
@@ -49,6 +50,7 @@ export type AnalysisResult = {
 const applicationStorageKey = "skinai:hospital-applications"
 const analysisStorageKey = "skinai:last-analysis"
 const lastAnalysisIdKey = "skinai:last-analysis-id"
+const analysisImagesStorageKey = "skinai:analysis-images"
 const notesStorageKey = "skinai:analysis-notes"
 
 const metricLabels: Record<string, { title: string; status: string; description: string; category: string }> = {
@@ -250,6 +252,7 @@ export function normalizeAnalysisResponse(payload: unknown): AnalysisResult {
     date: String(source.date || root.date || new Intl.DateTimeFormat("ko-KR").format(new Date())),
     skinType: normalizeSkinType(source.skinType),
     rawAnalysis: source,
+    imageDataUrl: typeof source.imageDataUrl === "string" ? source.imageDataUrl : typeof root.imageDataUrl === "string" ? root.imageDataUrl : undefined,
     metrics,
     concerns,
     treatments,
@@ -284,6 +287,23 @@ export function getLastAnalysisId(): string | null {
   return localStorage.getItem(lastAnalysisIdKey)
 }
 
+export function saveAnalysisImage(analysisId: string, imageDataUrl: string) {
+  try {
+    const all = JSON.parse(localStorage.getItem(analysisImagesStorageKey) || "{}")
+    all[analysisId] = imageDataUrl
+    localStorage.setItem(analysisImagesStorageKey, JSON.stringify(all))
+  } catch {}
+}
+
+export function getAnalysisImage(analysisId: string): string | null {
+  try {
+    const all = JSON.parse(localStorage.getItem(analysisImagesStorageKey) || "{}")
+    return typeof all[analysisId] === "string" ? all[analysisId] : null
+  } catch {
+    return null
+  }
+}
+
 export function getAnalysisNotes(analysisId: string): string {
   try {
     const all = JSON.parse(localStorage.getItem(notesStorageKey) || "{}")
@@ -301,8 +321,10 @@ export function saveAnalysisNotes(analysisId: string, notes: string) {
   } catch {}
 }
 
-export function saveLastAnalysis(result: unknown) {
-  localStorage.setItem(analysisStorageKey, JSON.stringify(normalizeAnalysisResponse(result)))
+export function saveLastAnalysis(result: unknown, imageDataUrl?: string) {
+  const normalized = normalizeAnalysisResponse(result)
+  if (imageDataUrl) normalized.imageDataUrl = imageDataUrl
+  localStorage.setItem(analysisStorageKey, JSON.stringify(normalized))
   window.dispatchEvent(new CustomEvent("skinai:analysis-updated"))
 }
 

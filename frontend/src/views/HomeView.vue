@@ -21,11 +21,13 @@ function viewApplicationPdf(application: HospitalApplication) {
       analysis: application.analysisSnapshot,
       user: getCurrentUser(),
       notes: application.submissionNote,
+      capturedImageDataUrl: application.analysisSnapshot.imageDataUrl,
     })
   } else if (analysis.value) {
     openPdfPreview({
       analysis: analysis.value,
       user: getCurrentUser(),
+      capturedImageDataUrl: analysis.value.imageDataUrl,
     })
   }
 }

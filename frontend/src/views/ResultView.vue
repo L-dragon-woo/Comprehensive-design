@@ -10,7 +10,7 @@ import PageContainer from "@/components/PageContainer.vue"
 import ScoreRing from "@/components/ScoreRing.vue"
 import { apiFetch, getCurrentUser, getMyAnalysis } from "@/lib/api"
 import { openPdfPreview } from "@/lib/pdf"
-import { getAnalysisNotes, getLastAnalysis, getLastAnalysisId, normalizeAnalysisResponse, saveAnalysisNotes, scoreBgColor, scoreColor, type AnalysisMetric, type AnalysisResult } from "@/lib/skinai"
+import { getAnalysisImage, getAnalysisNotes, getLastAnalysis, getLastAnalysisId, normalizeAnalysisResponse, saveAnalysisNotes, scoreBgColor, scoreColor, type AnalysisMetric, type AnalysisResult } from "@/lib/skinai"
 
 const route = useRoute()
 const result = ref<AnalysisResult | null>(null)
@@ -67,6 +67,7 @@ function downloadPdf() {
     analysis: result.value,
     user: getCurrentUser(),
     notes: notes.value,
+    capturedImageDataUrl: result.value.imageDataUrl,
   })
 }
 
@@ -113,7 +114,7 @@ onMounted(async () => {
   if (!analysisId.value) {
     const cached = getLastAnalysis()
     // Re-normalize so updated metric extraction logic applies to cached data
-    result.value = cached?.rawAnalysis ? normalizeAnalysisResponse(cached.rawAnalysis) : cached
+    result.value = cached?.rawAnalysis ? { ...normalizeAnalysisResponse(cached.rawAnalysis), imageDataUrl: cached.imageDataUrl } : cached
     loadNotes()
     if (result.value?.rawAnalysis) fetchAiSummary(result.value.rawAnalysis)
     return
@@ -122,7 +123,10 @@ onMounted(async () => {
   loading.value = true
   try {
     const saved = await getMyAnalysis(analysisId.value)
-    result.value = normalizeAnalysisResponse(saved.analysis)
+    result.value = {
+      ...normalizeAnalysisResponse(saved.analysis),
+      imageDataUrl: getAnalysisImage(analysisId.value) || undefined,
+    }
     loadNotes()
     if (result.value?.rawAnalysis) fetchAiSummary(result.value.rawAnalysis)
   } catch (e) {
@@ -155,13 +159,18 @@ onMounted(async () => {
     <template v-else>
       <section class="py-6">
         <div class="rounded-3xl border border-border bg-card p-6 shadow-sm">
-          <div class="mb-6 flex items-center justify-between">
-            <div>
+          <div class="mb-6 flex items-center justify-between gap-4">
+            <div class="min-w-0 flex-1">
               <p class="mb-1 text-sm text-muted-foreground">{{ result.date || "오늘 분석" }}</p>
               <h2 class="mb-1 text-xl font-bold">{{ result.skinType || "피부 타입 분석" }}</h2>
               <p class="text-sm text-muted-foreground">AI 분석 결과를 기반으로 추천을 정리했습니다.</p>
             </div>
-            <ScoreRing :score="result.overallScore || 0" :size="100" :stroke-width="7" />
+            <img v-if="result.imageDataUrl" :src="result.imageDataUrl" alt="분석에 사용한 얼굴 사진" class="h-24 w-20 shrink-0 rounded-2xl object-cover ring-1 ring-border" />
+            <ScoreRing v-else :score="result.overallScore || 0" :size="100" :stroke-width="7" />
+          </div>
+          <div v-if="result.imageDataUrl" class="mb-5 flex items-center justify-between rounded-2xl bg-secondary px-4 py-3">
+            <span class="text-sm font-medium text-muted-foreground">종합 점수</span>
+            <ScoreRing :score="result.overallScore || 0" :size="72" :stroke-width="6" />
           </div>
           <div class="flex flex-wrap gap-2">
             <span v-for="concern in result.concerns || []" :key="concern" class="rounded-full bg-accent px-3 py-1.5 text-xs font-medium">{{ concern }}</span>

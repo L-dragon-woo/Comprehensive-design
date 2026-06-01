@@ -46,7 +46,7 @@ def latest_human_message_text(messages: list[BaseMessage]) -> str:
             return str(message.content)
     return ""
 
-
+# 정규표현식으로 텍스트에서 이미지 경로를 추출하는 함수
 def parse_image_path(text: str) -> str | None:
     patterns = [
         r"(?:image_path|path|경로)\s*[:=]\s*([^\s,]+)",
@@ -61,7 +61,7 @@ def parse_image_path(text: str) -> str | None:
         return inline_path.group(1).strip().strip("'\"")
     return None
 
-
+# 정규표현식으로 텍스트에서 성별을 추출하는 함수
 def parse_gender(text: str) -> str | None:
     normalized = text.lower()
     if re.search(r"(?:\b여자\b|\bfemale\b|\bwoman\b)", normalized):
@@ -95,6 +95,7 @@ def classify_intent(user_text: str) -> str:
         ])
         label = extract_text(getattr(response, "content", "")).strip().lower()
         return "report" if "report" in label else "general"
+    # 여기 예외는 보통 유니코드 인코딩 문제
     except Exception:  # noqa: BLE001
         return "general"
 
@@ -187,8 +188,11 @@ def severe_untreated_directive(state: BeautyAgentState) -> str:
 
 
 def build_system_context(state: BeautyAgentState) -> str:
-    directive = severe_untreated_directive(state)
-    directive_block = f"\n{directive}\n" if directive else ""
+    """think 노드용 system context.
+
+    severe_untreated_directive는 풀 리포트 전용이므로 여기서는 주입하지 않는다
+    (final_report 노드가 직접 가져다 쓴다).
+    """
     return (
         f"{SYSTEM_PROMPT}\n\n"
         "현재 state 요약:\n"
@@ -199,7 +203,6 @@ def build_system_context(state: BeautyAgentState) -> str:
         f"- db_recommendations: {'존재' if state.get('db_recommendations') else '없음'}\n"
         f"- pubmed_recommendations: {'존재' if state.get('pubmed_recommendations') else '없음'}\n"
         f"- iteration: {state.get('iteration_count', 0)}/{state.get('max_iterations', DEFAULT_MAX_ITERATIONS)}\n"
-        f"{directive_block}"
     )
 
 

@@ -3,19 +3,13 @@
 그래프 구조 (2단계 계층 라우팅):
     START → classify_intent
               ├─ think → conditional(act | finish)
-              │   ↑                                          │
-              │   │ should_continue: think|inject_pubmed|fin │
-              │  observe ← act ← inject_pubmed ◄─────────────┘
-              │           ▲___________│ (추천 직후 근거 검색 1회 강제)
+              │   ↑                              │
+              │   │ should_continue: think|finish│
+              │  observe ← act ←─────────────────┘
               │
               └─ data_gate
                     ├─ compress → final_report → END
                     └─ insufficient_response → END
-
-inject_recommend: 진단(skin_scores) 후 추천 의도인데 db_recommendations가 없으면
-LLM 판단과 무관하게 recommend_treatment_db를 1회 강제(db_forced 가드). 시술명 환각 방지.
-inject_pubmed: 시술 추천(db_recommendations)이 나왔는데 PubMed 근거가 없으면
-LLM 판단과 무관하게 search_pubmed를 1회 강제 호출(pubmed_forced 가드로 1회만).
 
 노드 정의는 [nodes.py](nodes.py), 라우팅은 [routers.py](routers.py),
 헬퍼는 [helpers.py](helpers.py)에 분리되어 있다.
@@ -43,8 +37,6 @@ from agent.nodes import (
     data_gate,
     final_report,
     finish,
-    inject_pubmed_call,
-    inject_recommend_call,
     insufficient_response,
     observe,
     think,
@@ -82,8 +74,6 @@ def build_graph(checkpointer: InMemorySaver | None = None):
     workflow.add_node("think",                 think)
     workflow.add_node("act",                   act)
     workflow.add_node("observe",               observe)
-    workflow.add_node("inject_recommend",      inject_recommend_call)
-    workflow.add_node("inject_pubmed",         inject_pubmed_call)
     workflow.add_node("finish",                finish)
     workflow.add_node("compress",              compress)
     workflow.add_node("final_report",          final_report)
@@ -97,7 +87,6 @@ def build_graph(checkpointer: InMemorySaver | None = None):
     })
     workflow.add_conditional_edges("data_gate", route_after_data_gate, {
         "compress":              "compress",
-        "final_report":          "final_report",
         "insufficient_response": "insufficient_response",
     })
 
@@ -107,13 +96,9 @@ def build_graph(checkpointer: InMemorySaver | None = None):
     })
     workflow.add_edge("act", "observe")
     workflow.add_conditional_edges("observe", should_continue, {
-        "think":            "think",
-        "finish":           "finish",
-        "inject_recommend": "inject_recommend",
-        "inject_pubmed":    "inject_pubmed",
+        "think":  "think",
+        "finish": "finish",
     })
-    workflow.add_edge("inject_recommend", "act")
-    workflow.add_edge("inject_pubmed", "act")
 
     workflow.add_edge("compress", "final_report")
     workflow.add_edge("insufficient_response", END)
@@ -195,16 +180,20 @@ class ChatSession:
 
     # ── 입력/스트림 ──
 
+    # 채팅 시작할 때 초기 state(얼굴 이미지 경로, 성별) 세팅하고, 메시지 state에 사용자 입력을 추가한다.
+    # 이후 stream()에서 classify_intent 노드가 이 메시지를 보고 레포트를 원하는지(report), 일반 상담을 원하는지(general) 판정해서 라우팅한다.
+    # 일반 상담으로 라우팅되면, think/act/observe 사이클이 돌아가는 동안에는
+    #   messages state는 내부 LLM 단계의 프롬프트나 tool_call 결과로 계속 업데이트되지만,
+    #   classify_intent 노드 이후에는 사용자 입력이 추가되지 않으므로, messages state에서
+    #   가장 최근 HumanMessage(text)를 보면 사용자가 입력한 얼굴 이미지 경로와 성별을 파싱해서 state에 정착시킬 수 있다.
     def _initial_state(self, user_text: str) -> dict[str, Any]:
-        # ReAct 루프 가드는 "한 사용자 턴" 단위여야 한다. iteration_count/pubmed_forced를
-        # 매 입력마다 리셋하지 않으면 세션이 길어질수록 max_iterations에 조기 도달해
-        # (강제 search_pubmed 직후의) 최종 종합 답변이 잘려나간다.
+        # ReAct 루프 가드는 "한 사용자 턴" 단위. iteration_count를 매 입력마다 리셋해서
+        # 세션이 길어져도 max_iterations에 조기 도달하지 않게 한다.
         updates: dict[str, Any] = {
             "messages": [HumanMessage(content=user_text)],
             "iteration_count": 0,
-            "db_forced": False,
-            "pubmed_forced": False,
         }
+        # 사용자 입력에서 이미지 경로와 성별을 state에 저장
         parsed_image_path = parse_image_path(user_text)
         parsed_gender = parse_gender(user_text)
         if parsed_image_path:
@@ -226,11 +215,13 @@ class ChatSession:
         report_prefixed = False
 
         try:
+            # _initial_state로 이미지 경로, 성별, 메시지 state 등 초기 세팅을 한 후, classify_intent 노드가 이 메시지를 보고 레포트를 원하는지, 상담을 원하는지 판정해서 라우팅한다.
             for kind, payload in self.graph.stream(
                 self._initial_state(user_text),
                 config=self.config,
                 stream_mode=["messages", "updates"],
             ):
+                # stream_mode가 "messages"일 때, payload는 (message_chunk, meta) 형태로 온다. message_chunk가 ToolMessage면 무시하고, AIMessage면 think/final_report 노드에서 나온 텍스트를 prefix와 함께 사용자에게 노출한다.
                 if kind == "messages":
                     chunk, meta = payload
                     if isinstance(chunk, ToolMessage):
@@ -239,6 +230,7 @@ class ChatSession:
                     # classify_intent/compress 등 내부 LLM 단계의 토큰은 사용자에게 노출하지 않는다.
                     if node_name not in ("think", "final_report"):
                         continue
+                    # llm output(chunk)에서 순수 텍스트를 추출해서 prefix를 붙여 사용자에게 노출한다.
                     text = extract_text(getattr(chunk, "content", None))
                     if text:
                         if node_name == "final_report":
@@ -251,6 +243,8 @@ class ChatSession:
                                 yield "🧠 [Thought] "
                                 thought_prefixed = True
                             yield text
+
+                # stream_mode가 "updates"일 때, 각 노드 실행 완료 시 payload가 업데이트 딕셔너리 형태로 온다. 여기서 think 노드의 tool_calls와 act 노드의 ToolMessage를 가공해 사용자에게 노출한다.
                 elif kind == "updates":
                     for _node_name, node_update in payload.items():
                         for msg in _iter_update_messages(node_update):

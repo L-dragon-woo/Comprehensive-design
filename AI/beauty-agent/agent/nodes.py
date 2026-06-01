@@ -4,7 +4,6 @@ think → act → observe → finish / final_report / insufficient_response.
 """
 from __future__ import annotations
 
-import uuid
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
@@ -29,19 +28,23 @@ from tools.skin_analyze import aggregate_regions
 from tools.skin_analyze import skin_analyze as skin_analyze_tool
 
 
+# 채팅 입력할 때마다 report를 원하는지, 일반 상담(general)을 원하는지 라우팅하기 위해 intent state를 분류하는 노드
+# report/general 분류하는 구조는 Open Deep Research의 workflow 컨닝
 def classify_intent_node(state: BeautyAgentState) -> dict[str, Any]:
     """가장 최근 user 메시지의 의도를 분류해 state.intent에 저장.
 
     반환 값: 'report' | 'general'. 라우팅은 route_after_classify가 담당.
     """
     latest = latest_human_message_text(state.get("messages") or [])
+    # llm으로 사용자가 "최종 레포트 작성해줘", "지금까지 내용 정리해줘"와 같은 요청을 했는지 판정하여 report/general로 분류헌다.
+    # report면 data_gate로, general이면 think로 라우팅한다.
     return {"intent": classify_intent(latest)}
 
 
 def data_gate(state: BeautyAgentState) -> dict:
     """라우팅 전용 더미 노드.
 
-    데이터 충분 여부는 route_after_data_gate가 체크해서
+    실제 데이터 충분 여부는 route_after_data_gate가 체크해서
     compress 또는 insufficient_response로 분기한다.
     """
     return {}
@@ -59,6 +62,7 @@ def think(state: BeautyAgentState) -> dict[str, Any]:
       - max_iterations:  미설정 시 기본값
       - image_path/gender: 사용자 입력에서 파싱한 컨텍스트
     """
+    # context 보강. 사용자의 가장 최근 입력에서 image_path, gender 추출.
     context_updates = extract_state_context(state)
     merged_state = {**state, **context_updates}
 
@@ -71,26 +75,34 @@ def think(state: BeautyAgentState) -> dict[str, Any]:
         [skin_analyze_tool, recommend_treatment_db_tool, search_pubmed_tool]
     )
 
+    # 에이전트에게 현재 state 요약, 시스템 프롬프트를 주입하면서 다음 행동을 물어보는 프롬프트를 구성한다.
     messages = [SystemMessage(content=build_system_context(merged_state))]
+    # 지금까지의 대화 내역 + 사용자의 입력(messages state에 포함됨) 주입
     messages.extend(merged_state.get("messages") or [])
     response = llm.invoke(messages)
 
+    # LLM의 결과에서 text를 추출
     thought_text = extract_text(getattr(response, "content", None))
-    
+
     # act 노드(ToolNode)에서 state의 tool_calls를 보고 어떤 도구를 호출할지 결정함.
     # ToolNode가 state의 tool_calls 속성을 보고 도구 호출 여부와 호출할 도구를 결정함
     action_dict = response.tool_calls[0] if getattr(response, "tool_calls", None) else None
 
+    # message 히스토리에 LLM의 응답 추가하고 iteration_count 업데이트
     updates: dict[str, Any] = {
         "messages": [response],
         "iteration_count": state.get("iteration_count", 0) + 1,
     }
+    # thoughts/actions가 있으면 state에 추가
+    # actions가 추가되면 think 다음에 act로, 아니면 곧장 finish로 라우팅하는 구조
     if thought_text:
         updates["thoughts"] = [thought_text]
     if action_dict:
         updates["actions"] = [dict(action_dict)]
 
     if not state.get("current_goal"):
+        # 최초 1회에 한해 가장 최근 user 메시지를 current_goal로 세팅
+        #   최초 1회 말고 매 턴마다 유저의 채팅에서 goal을 업데이트 하는거로 바꾸면 좀 더 유연한 대화가 가능할 것 같음
         goal = latest_human_message_text(state.get("messages") or [])
         if goal:
             updates["current_goal"] = goal[:200]
@@ -98,54 +110,17 @@ def think(state: BeautyAgentState) -> dict[str, Any]:
         updates["max_iterations"] = DEFAULT_MAX_ITERATIONS
 
     updates.update(context_updates)
+
+    # 변경사항 반환하면서 route_after_think에서 라우팅
     return updates
 
 
 # act = 책 표준 ToolNode.
 # 도구별 가드(image_path 필수, skin_scores 필수 등)는 각 도구 함수 본문에서 직접 수행.
+# skin_analyze(image_path, gender) — 얼굴 이미지 → 부위별 raw 점수(0~100, 낮을수록 심각). state에 skin_scores, top_concerns 저장.
+# recommend_treatment_db() — state.skin_scores 기반 AuraDB(Neo4j) 시술 매칭. db_recommendations에 저장.
+# search_pubmed() — state.skin_scores와 db_recommendations 기반 PubMed 논문 검색(RAG). pubmed_recommendations에 저장.
 act = ToolNode([skin_analyze_tool, recommend_treatment_db_tool, search_pubmed_tool])
-
-
-def inject_recommend_call(state: BeautyAgentState) -> dict[str, Any]:
-    """진단(skin_scores) 후 추천 의도일 때, LLM 판단과 무관하게 recommend_treatment_db를 1회 강제.
-
-    gpt-4o-mini가 진단 다음에 도구를 건너뛰고 시술명을 임의로 지어내는(환각) 일을 막는다.
-    이 강제 호출로 실제 DB 추천이 히스토리에 들어와야 think가 사실 기반으로 리포트를 쓴다.
-    db_forced 플래그로 1회만 실행돼 무한 루프를 방지한다.
-    """
-    call_id = f"forced_recommend_{uuid.uuid4().hex[:8]}"
-    tool_call = {"name": "recommend_treatment_db", "args": {}, "id": call_id}
-    msg = AIMessage(
-        content="진단 결과를 바탕으로 매칭되는 시술을 조회하겠습니다.",
-        tool_calls=[tool_call],
-    )
-    return {
-        "messages": [msg],
-        "actions": [dict(tool_call)],
-        "iteration_count": state.get("iteration_count", 0) + 1,
-        "db_forced": True,
-    }
-
-
-def inject_pubmed_call(state: BeautyAgentState) -> dict[str, Any]:
-    """시술 추천(db_recommendations) 직후, LLM 판단과 무관하게 search_pubmed를 1회 강제.
-
-    gpt-4o-mini가 추천 다음 단계로 근거 검색을 안정적으로 이어가지 못하므로,
-    추천에 학술 근거를 항상 덧붙이도록 그래프 차원에서 결정적으로 tool_call을 발행한다.
-    pubmed_forced 플래그로 1회만 실행돼 무한 루프를 방지한다.
-    """
-    call_id = f"forced_pubmed_{uuid.uuid4().hex[:8]}"
-    tool_call = {"name": "search_pubmed", "args": {}, "id": call_id}
-    msg = AIMessage(
-        content="추천 시술의 학술적 근거를 확인하기 위해 PubMed 논문을 검색하겠습니다.",
-        tool_calls=[tool_call],
-    )
-    return {
-        "messages": [msg],
-        "actions": [dict(tool_call)],
-        "iteration_count": state.get("iteration_count", 0) + 1,
-        "pubmed_forced": True,
-    }
 
 
 def observe(state: BeautyAgentState) -> dict[str, Any]:
@@ -153,6 +128,8 @@ def observe(state: BeautyAgentState) -> dict[str, Any]:
     messages = state.get("messages") or []
     collected: list[str] = []
     for msg in reversed(messages):
+        # ToolMessage는 act의 도구 호출 결과로서, content에서 텍스트를 추출해서 observations에 모은다.
+        # AIMessage가 나오면 그 이전 메시지는 다음 행동 결정에 영향을 주지 않으므로 수집 중단한다.
         if isinstance(msg, ToolMessage):
             text = extract_text(msg.content)
             if text:
@@ -162,9 +139,10 @@ def observe(state: BeautyAgentState) -> dict[str, Any]:
     if not collected:
         return {}
     collected.reverse()
+    # observe 노드에서 수집한 도구 호출 결과(observations)를 state에 저장하면, should_continue에서 루프 계속 여부를 판단하는 데 활용한다(ReAct).
     return {"observations": collected}
 
-
+# 가장 최근 AIMessage에서 content를 final_answer로 하여 state에 저장하고, is_complete=True로 설정하여 해당 턴의 대화를 종료한다(다음 채팅 입력 받을 차례).
 def finish(state: BeautyAgentState) -> dict[str, Any]:
     """최종 답변 content를 final_answer로 발췌하고 is_complete=True."""
     last_ai_text = ""
@@ -188,7 +166,9 @@ def compress(state: BeautyAgentState) -> dict[str, Any]:
     pubmed_recs = state.get("pubmed_recommendations") or []
 
     parts: list[str] = []
+
     if db_recs:
+        # db 기반 추천 결과를 포매팅해서 LLM에 주입할 텍스트로 변환한다.
         parts.append(
             f"[DB 추천 시술 ({len(db_recs)}건)]\n" + "\n".join(
                 f"- {r.get('region_ko')} ({r.get('score')}점) → code {r.get('code')}: "
@@ -198,6 +178,7 @@ def compress(state: BeautyAgentState) -> dict[str, Any]:
             )
         )
     if pubmed_recs:
+        # pubmed 논문 검색 결과를 포매팅해서 LLM에 주입할 텍스트로 변환한다.
         parts.append(
             f"[PubMed 논문 근거 ({len(pubmed_recs)}건)]\n" + "\n".join(
                 f"- {r.get('region_ko')} ({r.get('score')}점, {r.get('severity')}): "

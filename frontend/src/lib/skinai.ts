@@ -20,6 +20,7 @@ export interface HospitalApplication {
   submittedAt: string
   status: "submitted" | "reviewing" | "confirmed"
   includedItems: string[]
+  pdfUrl?: string
   analysisId?: string
   analysisSnapshot?: AnalysisResult
   submissionNote?: string

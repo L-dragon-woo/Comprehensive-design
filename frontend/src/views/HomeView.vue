@@ -13,9 +13,17 @@ import { formatApplicationDate, getHospitalApplications, getLastAnalysis, normal
 
 const applications = ref<HospitalApplication[]>([])
 const analysis = ref(getLastAnalysis())
-const latestApplication = computed(() => applications.value[0])
+const applicationCountLabel = computed(() => `${applications.value.length}건`)
+const showAllApplications = ref(false)
+const visibleApplications = computed(() => (showAllApplications.value ? applications.value : applications.value.slice(0, 1)))
+const hasMoreApplications = computed(() => applications.value.length > 1)
 
 function viewApplicationPdf(application: HospitalApplication) {
+  if (application.pdfUrl) {
+    window.open(application.pdfUrl, "_blank", "noopener,noreferrer")
+    return
+  }
+
   if (application.analysisSnapshot) {
     openPdfPreview({
       analysis: application.analysisSnapshot,
@@ -41,7 +49,8 @@ function statusColor(status: HospitalApplication["status"]) {
 }
 
 function refresh() {
-  applications.value = getHospitalApplications()
+  applications.value = getHospitalApplications().sort((a, b) => Date.parse(b.submittedAt) - Date.parse(a.submittedAt))
+  if (applications.value.length <= 1) showAllApplications.value = false
   analysis.value = getLastAnalysis()
 }
 
@@ -117,47 +126,65 @@ onUnmounted(() => {
       </RouterLink>
     </section>
 
-    <section v-if="latestApplication" class="py-6">
+    <section v-if="applications.length" class="py-6">
       <div class="mb-4 flex items-center justify-between">
-        <h2 class="text-lg font-semibold">병원 신청 현황</h2>
-        <RouterLink to="/hospitals" class="flex items-center gap-1 text-sm font-medium text-primary">
+        <div>
+          <h2 class="text-lg font-semibold">병원 신청 현황</h2>
+          <p class="mt-0.5 text-sm text-muted-foreground">{{ applicationCountLabel }}</p>
+        </div>
+        <button
+          v-if="hasMoreApplications"
+          type="button"
+          class="flex items-center gap-1 text-sm font-medium text-primary"
+          @click="showAllApplications = !showAllApplications"
+        >
+          {{ showAllApplications ? "접기" : "전체보기" }}
+          <ChevronRight :class="['h-4 w-4 transition-transform', showAllApplications ? '-rotate-90' : '']" />
+        </button>
+        <RouterLink v-else to="/hospitals" class="flex items-center gap-1 text-sm font-medium text-primary">
           병원 찾기
           <ChevronRight class="h-4 w-4" />
         </RouterLink>
       </div>
-      <div class="rounded-2xl border border-primary/20 bg-card p-5 shadow-sm">
-        <div class="flex items-start justify-between gap-3">
-          <div class="flex-1 min-w-0">
-            <p class="font-semibold truncate">{{ latestApplication.hospitalName }}</p>
-            <p class="mt-1 text-sm text-muted-foreground">{{ formatApplicationDate(latestApplication.submittedAt) }} 제출</p>
-            <div class="mt-2 flex flex-wrap gap-1.5">
-              <span v-for="item in latestApplication.includedItems" :key="item" class="rounded-full bg-accent px-2.5 py-1 text-xs">{{ item }}</span>
+      <div class="space-y-3">
+        <div
+          v-for="application in visibleApplications"
+          :key="application.id"
+          class="rounded-2xl border border-border bg-card p-5 shadow-sm"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0 flex-1">
+              <p class="truncate font-semibold">{{ application.hospitalName }}</p>
+              <p class="mt-1 text-sm text-muted-foreground">{{ formatApplicationDate(application.submittedAt) }} 제출</p>
+              <div class="mt-2 flex flex-wrap gap-1.5">
+                <span v-for="item in application.includedItems" :key="`${application.id}-${item}`" class="rounded-full bg-accent px-2.5 py-1 text-xs">{{ item }}</span>
+              </div>
             </div>
+            <span :class="['shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold', statusColor(application.status)]">
+              {{ statusLabel(application.status) }}
+            </span>
           </div>
-          <span :class="['shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold', statusColor(latestApplication.status)]">
-            {{ statusLabel(latestApplication.status) }}
-          </span>
-        </div>
-        <div class="mt-4 flex gap-2">
-          <RouterLink
-            :to="latestApplication.analysisId ? `/result/${latestApplication.analysisId}` : '/result'"
-            class="flex-1"
-          >
-            <BaseButton variant="outline" size="sm" class="w-full">
-              <Eye class="h-3.5 w-3.5" />
-              결과 보기
+          <div class="mt-4 flex gap-2">
+            <RouterLink
+              :to="application.analysisId ? `/result/${application.analysisId}` : '/result'"
+              class="flex-1"
+            >
+              <BaseButton variant="outline" size="sm" class="w-full">
+                <Eye class="h-3.5 w-3.5" />
+                결과 보기
+              </BaseButton>
+            </RouterLink>
+            <BaseButton
+              v-if="application.pdfUrl || application.analysisSnapshot || analysis"
+              variant="outline"
+              size="sm"
+              class="flex-1"
+              @click="viewApplicationPdf(application)"
+            >
+              <FileText class="h-3.5 w-3.5" />
+              PDF 보기
             </BaseButton>
-          </RouterLink>
-          <BaseButton
-            v-if="latestApplication.analysisSnapshot || analysis"
-            variant="outline"
-            size="sm"
-            class="flex-1"
-            @click="viewApplicationPdf(latestApplication)"
-          >
-            <FileText class="h-3.5 w-3.5" />
-            PDF 보기
-          </BaseButton>
+          </div>
         </div>
       </div>
     </section>

@@ -72,6 +72,7 @@ function downloadPdf() {
     analysis: result.value,
     user: getCurrentUser(),
     notes: notes.value,
+    aiSummary: aiSummary.value || result.value.aiSummary,
     capturedImageDataUrl: result.value.imageDataUrl,
   })
 }

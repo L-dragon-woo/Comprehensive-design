@@ -27,11 +27,11 @@ function clean(text: string) {
 }
 
 function isStep(line: string) {
-  return /^\[?\s*Step\s*\d+\s*\]?/i.test(line.trim())
+  return /^\[?\s*Step\s*\d+\s*\]?/i.test(clean(line))
 }
 
 function parseStep(line: string) {
-  const match = clean(line).match(/^(Step\s*(\d+))\s*(.+)?$/i)
+  const match = clean(line).match(/^\[?\s*(Step\s*(\d+))\s*\]?\s*(.+)?$/i)
   return {
     step: match?.[1]?.replace(/\s+/g, " ") || "Step",
     title: clean(match?.[3] || line),
@@ -64,6 +64,7 @@ function pushCard(section: AiSection | null, card: AiCard | null) {
 }
 
 function parsePlainReport(lines: string[], fallbackTitle: string) {
+  const originalLines = [...lines]
   const parsedTitle = fallbackTitle || (/리포트|분석|진단|추천/.test(lines[0] || "") ? clean(lines.shift() || "") : "")
   const intro: string[] = []
   const diagnosis: AiSection = { step: "Step 1", title: "피부 진단 결과", cards: [], notes: [] }
@@ -126,10 +127,15 @@ function parsePlainReport(lines: string[], fallbackTitle: string) {
 
   if (currentTreatment) treatments.cards.push(currentTreatment)
 
+  const sections = [diagnosis, treatments, evidence].filter((section) => section.cards.length || section.notes.length)
+  if (!sections.length) {
+    return { title: "", intro: fallbackTitle ? originalLines.map(clean) : [parsedTitle, ...intro].filter(Boolean), sections, closing }
+  }
+
   return {
     title: parsedTitle,
     intro,
-    sections: [diagnosis, treatments, evidence].filter((section) => section.cards.length || section.notes.length),
+    sections,
     closing,
   }
 }
@@ -180,16 +186,40 @@ const parsed = computed(() => {
         continue
       }
 
+      if (!currentCard && !bulletTitle) {
+        currentSection.notes.push(bullet)
+        continue
+      }
+
+      if (/^시술\s*특징$/.test(bulletTitle?.[1] || "") && currentCard) {
+        currentCard.lines.push(bulletTitle?.[2] || bullet)
+        continue
+      }
+
+      if (/^권장\s*시술$/.test(bulletTitle?.[1] || "")) {
+        pushCard(currentSection, currentCard)
+        currentCard = { title: bulletTitle?.[2] || "권장 시술", lines: [] }
+        continue
+      }
+
       if (!currentCard) {
-        const first = parseTitleScore(bulletTitle ? bulletTitle[1] : bullet)
+        const first = parseTitleScore(bulletTitle ? `${bulletTitle[1]} ${bulletTitle[2]}` : bullet)
         currentCard = {
           title: first.title,
           score: first.score,
-          lines: bulletTitle ? [bulletTitle[2]] : [],
+          lines: first.score ? [] : bulletTitle ? [bulletTitle[2]] : [],
         }
       } else {
         currentCard.lines.push(bullet)
       }
+      continue
+    }
+
+    const strongMetricMatch = rawLine.match(/^\*\*(.+?)\*\*$/)
+    if (strongMetricMatch && currentSection) {
+      pushCard(currentSection, currentCard)
+      const parsedStrong = parseTitleScore(strongMetricMatch[1])
+      currentCard = { title: parsedStrong.title, score: parsedStrong.score, lines: [] }
       continue
     }
 

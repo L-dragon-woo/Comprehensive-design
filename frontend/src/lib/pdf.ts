@@ -5,6 +5,7 @@ export interface PdfOptions {
   analysis: AnalysisResult
   user: UserProfile | null
   notes?: string
+  aiSummary?: string
   capturedImageDataUrl?: string
 }
 
@@ -15,8 +16,26 @@ function scoreStatusKr(score: number): string {
   return "집중 관리"
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+}
+
+function formatAiSummary(value: string): string {
+  return escapeHtml(value)
+    .replace(/^#{1,6}\s*/gm, "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/\n/g, "<br>")
+}
+
 function buildPrintHtml(options: PdfOptions): string {
-  const { analysis, user, notes, capturedImageDataUrl } = options
+  const { analysis, user, notes, aiSummary, capturedImageDataUrl } = options
   const date = analysis.date || new Intl.DateTimeFormat("ko-KR").format(new Date())
 
   const metricsRows = (analysis.metrics || [])
@@ -61,7 +80,15 @@ function buildPrintHtml(options: PdfOptions): string {
     ? `
     <div class="section">
       <h2>메모</h2>
-      <div class="notes-box">${notes.replace(/\n/g, "<br>")}</div>
+      <div class="notes-box">${escapeHtml(notes).replace(/\n/g, "<br>")}</div>
+    </div>`
+    : ""
+
+  const aiSummarySection = aiSummary?.trim()
+    ? `
+    <div class="section">
+      <h2>AI 종합 분석 요약</h2>
+      <div class="ai-summary-box">${formatAiSummary(aiSummary)}</div>
     </div>`
     : ""
 
@@ -108,6 +135,7 @@ function buildPrintHtml(options: PdfOptions): string {
   .badge { background: #d1fae5; color: #065f46; font-size: 7.5pt; padding: 1px 6px; border-radius: 100px; font-weight: 600; }
   .treatment-reason { color: #4b5563; font-size: 9pt; margin-bottom: 3px; }
   .treatment-note { color: #6b7280; font-size: 8.5pt; font-style: italic; }
+  .ai-summary-box { background: #f8fafc; border: 1px solid #dbeafe; border-radius: 8px; padding: 12px; font-size: 9.5pt; line-height: 1.65; color: #1f2937; }
   .notes-box { background: #fefce8; border: 1px solid #fde68a; border-radius: 8px; padding: 12px; font-size: 10pt; line-height: 1.6; white-space: pre-wrap; }
   .analysis-photo { max-width: 180px; border-radius: 12px; border: 1px solid #e5e7eb; }
   .footer { text-align: center; font-size: 8pt; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 10px; margin-top: 24px; }
@@ -175,6 +203,7 @@ function buildPrintHtml(options: PdfOptions): string {
       : ""
   }
 
+  ${aiSummarySection}
   ${notesSection}
   ${photoSection}
 

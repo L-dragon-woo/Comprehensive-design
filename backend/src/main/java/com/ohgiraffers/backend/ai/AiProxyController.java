@@ -63,8 +63,46 @@ public class AiProxyController {
         return response;
     }
 
+    @GetMapping("/api/consultations/messages")
+    public ConsultationHistoryResponse listConsultationMessages(
+            @RequestParam(required = false) String analysisId,
+            Authentication authentication
+    ) {
+        String username = authentication == null ? "anonymous" : authentication.getName();
+        List<ChatHistoryDocument> turns = chatHistoryService.latestSessionTurns(username, analysisId);
+        String sessionId = turns.stream()
+                .map(ChatHistoryDocument::getSessionId)
+                .filter(id -> id != null && !id.isBlank())
+                .findFirst()
+                .orElse(null);
+        List<ConsultationMessageResponse> messages = turns.stream()
+                .flatMap(turn -> List.of(
+                        new ConsultationMessageResponse(
+                                turn.getId() + "-user",
+                                "user",
+                                turn.getUserMessage(),
+                                instantString(turn.getCreatedAt())
+                        ),
+                        new ConsultationMessageResponse(
+                                turn.getId() + "-assistant",
+                                "assistant",
+                                aiContent(turn.getAiResponse()),
+                                instantString(turn.getCreatedAt())
+                        )
+                ).stream())
+                .filter(message -> message.content() != null && !message.content().isBlank())
+                .toList();
+        return new ConsultationHistoryResponse(sessionId, messages);
+    }
+
     private String instantString(Instant instant) {
         return instant == null ? null : instant.toString();
+    }
+
+    private String aiContent(Map<String, Object> aiResponse) {
+        if (aiResponse == null) return null;
+        Object content = aiResponse.get("content");
+        return content instanceof String text ? text : null;
     }
 
     @PostMapping(value = "/api/analyses", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -115,6 +153,10 @@ public class AiProxyController {
     }
 
     public record SavedAnalysisResponse(String analysisId, String createdAt, Map<String, Object> analysis) {}
+
+    public record ConsultationHistoryResponse(String sessionId, List<ConsultationMessageResponse> messages) {}
+
+    public record ConsultationMessageResponse(String id, String role, String content, String createdAt) {}
 
     public record AnalysisSummaryRequest(Map<String, Object> analysis, String gender, String sessionId, String analysisId) {}
 

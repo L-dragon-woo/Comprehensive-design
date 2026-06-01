@@ -7,7 +7,7 @@ import BottomNav from "@/components/BottomNav.vue"
 import FeatureCard from "@/components/FeatureCard.vue"
 import PageContainer from "@/components/PageContainer.vue"
 import ScoreRing from "@/components/ScoreRing.vue"
-import { getCurrentUser, getMyAnalyses } from "@/lib/api"
+import { getCurrentUser, getMyAnalyses, getStoredFileUrl } from "@/lib/api"
 import { openPdfPreview } from "@/lib/pdf"
 import { formatApplicationDate, getHospitalApplications, getLastAnalysis, normalizeAnalysisResponse, type HospitalApplication } from "@/lib/skinai"
 
@@ -18,7 +18,13 @@ const showAllApplications = ref(false)
 const visibleApplications = computed(() => (showAllApplications.value ? applications.value : applications.value.slice(0, 1)))
 const hasMoreApplications = computed(() => applications.value.length > 1)
 
-function viewApplicationPdf(application: HospitalApplication) {
+async function viewApplicationPdf(application: HospitalApplication) {
+  if (application.pdfKey) {
+    const storedFile = await getStoredFileUrl(application.pdfKey)
+    window.open(storedFile.url, "_blank", "noopener,noreferrer")
+    return
+  }
+
   if (application.pdfUrl) {
     window.open(application.pdfUrl, "_blank", "noopener,noreferrer")
     return
@@ -175,7 +181,7 @@ onUnmounted(() => {
               </BaseButton>
             </RouterLink>
             <BaseButton
-              v-if="application.pdfUrl || application.analysisSnapshot || analysis"
+              v-if="application.pdfKey || application.pdfUrl || application.analysisSnapshot || analysis"
               variant="outline"
               size="sm"
               class="flex-1"

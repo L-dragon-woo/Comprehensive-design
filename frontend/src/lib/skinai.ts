@@ -21,6 +21,7 @@ export interface HospitalApplication {
   status: "submitted" | "reviewing" | "confirmed"
   includedItems: string[]
   pdfUrl?: string
+  pdfKey?: string
   analysisId?: string
   analysisSnapshot?: AnalysisResult
   submissionNote?: string
@@ -42,6 +43,8 @@ export type AnalysisResult = {
   rawAnalysis?: unknown
   aiSummary?: string
   imageDataUrl?: string
+  imageKey?: string
+  imageUrl?: string
   metrics?: AnalysisMetric[]
   concerns?: string[]
   treatments?: Array<{ name: string; match: string; reason: string; note: string }>
@@ -322,6 +325,8 @@ export function normalizeAnalysisResponse(payload: unknown): AnalysisResult {
     rawAnalysis: source,
     aiSummary,
     imageDataUrl: typeof source.imageDataUrl === "string" ? source.imageDataUrl : typeof root.imageDataUrl === "string" ? root.imageDataUrl : undefined,
+    imageKey: typeof source.imageKey === "string" ? source.imageKey : typeof root.imageKey === "string" ? root.imageKey : undefined,
+    imageUrl: typeof source.imageUrl === "string" ? source.imageUrl : typeof root.imageUrl === "string" ? root.imageUrl : undefined,
     metrics,
     concerns,
     treatments,

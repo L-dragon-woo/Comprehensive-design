@@ -18,22 +18,27 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import com.ohgiraffers.backend.storage.S3StorageService;
+
 @RestController
 public class AiProxyController {
 
     private final WebClient aiClient;
     private final ChatHistoryService chatHistoryService;
     private final AnalysisResultService analysisResultService;
+    private final S3StorageService s3StorageService;
 
     public AiProxyController(
             WebClient.Builder builder,
             AiClientProperties properties,
             ChatHistoryService chatHistoryService,
-            AnalysisResultService analysisResultService
+            AnalysisResultService analysisResultService,
+            S3StorageService s3StorageService
     ) {
         this.aiClient = builder.baseUrl(properties.baseUrl()).build();
         this.chatHistoryService = chatHistoryService;
         this.analysisResultService = analysisResultService;
+        this.s3StorageService = s3StorageService;
     }
 
     @GetMapping("/api/ai/health")
@@ -125,9 +130,16 @@ public class AiProxyController {
                 .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .block();
         if (response != null) {
-            AnalysisResultDocument saved = analysisResultService.save(authentication.getName(), response);
+            String username = authentication.getName();
+            AnalysisResultDocument saved = analysisResultService.save(username, response);
             response.putIfAbsent("analysisId", saved.getId());
             response.putIfAbsent("createdAt", instantString(saved.getCreatedAt()));
+            if (s3StorageService.enabled()) {
+                S3StorageService.StoredObject imageObject = s3StorageService.uploadAnalysisImage(username, saved.getId(), image);
+                analysisResultService.saveImageObject(username, saved.getId(), imageObject.key(), imageObject.url(), imageObject.uploadedAt());
+                response.put("imageKey", imageObject.key());
+                response.put("imageUrl", imageObject.url());
+            }
         }
         return response;
     }

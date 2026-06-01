@@ -5,8 +5,8 @@ import AppHeader from "@/components/AppHeader.vue"
 import BaseButton from "@/components/BaseButton.vue"
 import BottomNav from "@/components/BottomNav.vue"
 import PageContainer from "@/components/PageContainer.vue"
-import { getCurrentUser } from "@/lib/api"
-import { openPdfPreview } from "@/lib/pdf"
+import { getCurrentUser, uploadReportFile } from "@/lib/api"
+import { getPdfHtml, openPdfPreview } from "@/lib/pdf"
 import { getAnalysisNotes, getLastAnalysis, getLastAnalysisId, saveHospitalApplication, type AnalysisResult } from "@/lib/skinai"
 
 type Hospital = { id: string; name: string; roadAddress: string; address: string; phone: string; distance: string; x: string; y: string; placeUrl: string }
@@ -30,6 +30,7 @@ const submitNote = ref("")
 const includedReportItems = ["AI 분석 결과", "AI 종합 분석", "추천 시술", "피부 지표", "관리 추천"]
 const currentAnalysis = ref<AnalysisResult | null>(null)
 const showMetricsDetail = ref(false)
+const submittingReport = ref(false)
 
 function openSubmitModal() {
   currentAnalysis.value = getLastAnalysis()
@@ -203,8 +204,30 @@ async function loadHospitals(useLocation = false) {
   }
 }
 
-function submitReport() {
-  if (!selectedHospital.value) return
+async function submitReport() {
+  if (!selectedHospital.value || !currentAnalysis.value || submittingReport.value) return
+  submittingReport.value = true
+  const analysisId = getLastAnalysisId() || undefined
+  let pdfUrl: string | undefined
+  let pdfKey: string | undefined
+
+  try {
+    const html = getPdfHtml({
+      analysis: currentAnalysis.value,
+      user: getCurrentUser(),
+      notes: submitNote.value,
+      capturedImageDataUrl: currentAnalysis.value.imageDataUrl,
+    })
+    const reportBlob = new Blob([html], { type: "text/html;charset=UTF-8" })
+    const storedReport = await uploadReportFile(reportBlob, `skinai-report-${analysisId || Date.now()}.html`, analysisId)
+    pdfUrl = storedReport.url
+    pdfKey = storedReport.key
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "report upload failed"
+    submittingReport.value = false
+    return
+  }
+
   submittedHospitalName.value = selectedHospital.value.name
   saveHospitalApplication({
     id: Date.now().toString(),
@@ -212,10 +235,13 @@ function submitReport() {
     submittedAt: new Date().toISOString(),
     status: "submitted",
     includedItems: [...includedReportItems],
-    analysisId: getLastAnalysisId() || undefined,
+    analysisId,
     analysisSnapshot: currentAnalysis.value || undefined,
     submissionNote: submitNote.value || undefined,
+    pdfUrl,
+    pdfKey,
   })
+  submittingReport.value = false
   closeSubmitModal()
 }
 
@@ -407,7 +433,7 @@ onMounted(() => loadHospitals(true))
               <FileText class="h-4 w-4" />
               PDF 미리보기
             </BaseButton>
-            <BaseButton class="h-12 flex-1 rounded-xl" :disabled="!currentAnalysis" @click="submitReport">
+            <BaseButton class="h-12 flex-1 rounded-xl" :disabled="!currentAnalysis || submittingReport" @click="submitReport">
               <Send class="h-4 w-4" />
               제출하기
             </BaseButton>

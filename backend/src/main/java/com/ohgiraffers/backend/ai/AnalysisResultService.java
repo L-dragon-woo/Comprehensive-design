@@ -52,4 +52,27 @@ public class AnalysisResultService {
         document.setAnalysis(analysis);
         return repository.save(document);
     }
+
+    public AnalysisResultDocument saveImageObject(String username, String id, String imageKey, String imageUrl, String uploadedAt) {
+        AnalysisResultDocument document = get(username, id);
+        Map<String, Object> analysis = new LinkedHashMap<>(document.getAnalysis());
+        analysis.put("imageKey", imageKey);
+        analysis.put("imageUrl", imageUrl);
+        analysis.put("imageUploadedAt", uploadedAt);
+
+        Object nested = analysis.get("result");
+        if (nested instanceof Map<?, ?> nestedMap) {
+            Map<String, Object> result = new LinkedHashMap<>();
+            nestedMap.forEach((key, value) -> {
+                if (key != null) result.put(String.valueOf(key), value);
+            });
+            result.put("imageKey", imageKey);
+            result.put("imageUrl", imageUrl);
+            result.put("imageUploadedAt", uploadedAt);
+            analysis.put("result", result);
+        }
+
+        document.setAnalysis(analysis);
+        return repository.save(document);
+    }
 }

@@ -12,6 +12,7 @@ export type UserProfile = {
 export type AuthResponse = { accessToken: string; refreshToken: string; expiresIn: number; tokenType: string; user: UserProfile }
 export type ProfilePayload = Omit<UserProfile, "username">
 export type SavedAnalysis = { analysisId: string; createdAt: string; analysis: unknown }
+export type StoredFile = { key: string; url: string; uploadedAt: string }
 
 const accessKey = "skinai:access-token"
 const refreshKey = "skinai:refresh-token"
@@ -137,6 +138,22 @@ export async function getMyAnalysis(id: string) {
   const res = await apiFetch(`/api/analyses/${encodeURIComponent(id)}`)
   if (!res.ok) throw new Error(await readErrorReason(res))
   return (await res.json()) as SavedAnalysis
+}
+
+export async function uploadReportFile(file: Blob, filename: string, analysisId?: string | null) {
+  const formData = new FormData()
+  formData.append("file", file, filename)
+  if (analysisId) formData.append("analysisId", analysisId)
+
+  const res = await apiFetch("/api/files/reports", { method: "POST", body: formData })
+  if (!res.ok) throw new Error(await readErrorReason(res))
+  return (await res.json()) as StoredFile
+}
+
+export async function getStoredFileUrl(key: string) {
+  const res = await apiFetch(`/api/files/url?key=${encodeURIComponent(key)}`)
+  if (!res.ok) throw new Error(await readErrorReason(res))
+  return (await res.json()) as StoredFile
 }
 
 export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {

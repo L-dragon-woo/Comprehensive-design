@@ -5,3 +5,11 @@ __pycache__/
 uploads/
 .cache/
 analysis-result.json
+samples/
+tests/
+classification/
+**/*.ipynb
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.DS_Store

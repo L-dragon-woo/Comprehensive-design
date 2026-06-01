@@ -63,6 +63,77 @@ function pushCard(section: AiSection | null, card: AiCard | null) {
   }
 }
 
+function parsePlainReport(lines: string[], fallbackTitle: string) {
+  const parsedTitle = fallbackTitle || (/리포트|분석|진단|추천/.test(lines[0] || "") ? clean(lines.shift() || "") : "")
+  const intro: string[] = []
+  const diagnosis: AiSection = { step: "Step 1", title: "피부 진단 결과", cards: [], notes: [] }
+  const treatments: AiSection = { step: "Step 2", title: "추천 시술 및 관리 방향", cards: [], notes: [] }
+  const evidence: AiSection = { step: "Step 3", title: "학술 근거", cards: [], notes: [] }
+  const closing: string[] = []
+
+  let currentTreatment: AiCard | null = null
+
+  for (const rawLine of lines) {
+    const line = clean(rawLine)
+    if (!line) continue
+
+    const metricMatch = line.match(/^(.+?)\s*:\s*(\d+(?:\.\d+)?)\s*점\s*[-–]\s*(.+)$/)
+    if (metricMatch) {
+      diagnosis.cards.push({
+        title: clean(metricMatch[1]),
+        score: `${metricMatch[2]}점`,
+        lines: [clean(metricMatch[3])],
+      })
+      continue
+    }
+
+    const treatmentMatch = line.match(/^권장\s*시술\s*:\s*(.+)$/)
+    if (treatmentMatch) {
+      if (currentTreatment) treatments.cards.push(currentTreatment)
+      currentTreatment = { title: clean(treatmentMatch[1]), lines: [] }
+      continue
+    }
+
+    const treatmentFeatureMatch = line.match(/^시술\s*특징\s*:\s*(.+)$/)
+    if (treatmentFeatureMatch) {
+      if (!currentTreatment) currentTreatment = { title: "시술 특징", lines: [] }
+      currentTreatment.lines.push(clean(treatmentFeatureMatch[1]))
+      continue
+    }
+
+    const evidenceMatch = line.match(/^(.+?)\s*:\s*(.+PMID\s*\d+.*)$/i)
+    if (evidenceMatch) {
+      evidence.cards.push({
+        title: clean(evidenceMatch[1]),
+        lines: [clean(evidenceMatch[2])],
+      })
+      continue
+    }
+
+    if (/^다음 단계|^\*?본 진단|최종 시술 플랜/.test(line)) {
+      closing.push(line.replace(/^\*|\*$/g, ""))
+      continue
+    }
+
+    if (diagnosis.cards.length || treatments.cards.length || currentTreatment || evidence.cards.length) {
+      if (evidence.cards.length) evidence.notes.push(line)
+      else if (currentTreatment) currentTreatment.lines.push(line)
+      else treatments.notes.push(line)
+    } else {
+      intro.push(line)
+    }
+  }
+
+  if (currentTreatment) treatments.cards.push(currentTreatment)
+
+  return {
+    title: parsedTitle,
+    intro,
+    sections: [diagnosis, treatments, evidence].filter((section) => section.cards.length || section.notes.length),
+    closing,
+  }
+}
+
 const parsed = computed(() => {
   const lines = props.content.replace(/\r\n/g, "\n").split("\n").map((line) => line.trim())
   const intro: string[] = []
@@ -140,6 +211,10 @@ const parsed = computed(() => {
   }
 
   pushCard(currentSection, currentCard)
+
+  if (!sections.length && intro.length) {
+    return parsePlainReport([...intro], title)
+  }
 
   return { title, intro, sections, closing }
 })

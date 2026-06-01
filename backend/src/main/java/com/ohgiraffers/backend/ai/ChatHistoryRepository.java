@@ -7,5 +7,7 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 public interface ChatHistoryRepository extends MongoRepository<ChatHistoryDocument, String> {
     List<ChatHistoryDocument> findByUsernameOrderByCreatedAtDesc(String username);
 
+    List<ChatHistoryDocument> findByUsernameAndAnalysisIdOrderByCreatedAtDesc(String username, String analysisId);
+
     List<ChatHistoryDocument> findByUsernameAndSessionIdOrderByCreatedAtAsc(String username, String sessionId);
 }

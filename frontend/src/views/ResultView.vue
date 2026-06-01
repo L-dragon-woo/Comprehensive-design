@@ -47,6 +47,11 @@ const notes = ref("")
 const notesSaved = ref(false)
 let notesSaveTimer: ReturnType<typeof setTimeout> | null = null
 
+function isGenericFallbackSummary(content?: string) {
+  if (!content) return false
+  return content.includes("예상 피부 나이") && content.includes("궁금한 항목을") && content.includes("구체적으로 물어보면")
+}
+
 function loadNotes() {
   if (resolvedId.value) notes.value = getAnalysisNotes(resolvedId.value)
 }
@@ -67,12 +72,13 @@ function downloadPdf() {
     analysis: result.value,
     user: getCurrentUser(),
     notes: notes.value,
+    aiSummary: aiSummary.value || result.value.aiSummary,
     capturedImageDataUrl: result.value.imageDataUrl,
   })
 }
 
 async function fetchAiSummary(analysis: unknown) {
-  if (result.value?.aiSummary) {
+  if (result.value?.aiSummary && !isGenericFallbackSummary(result.value.aiSummary)) {
     aiSummary.value = result.value.aiSummary
     return
   }

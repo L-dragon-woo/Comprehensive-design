@@ -4,17 +4,21 @@ import java.time.Instant;
 import java.util.Map;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Document("chat_history")
 public class ChatHistoryDocument {
     @Id
     private String id;
+    @Indexed
     private String username;
+    @Indexed
     private String sessionId;
     private String userMessage;
     private Map<String, Object> aiResponse;
     private Object analysis;
+    @Indexed
     private String analysisId;
     private Object requestHistory;
     private Instant createdAt;

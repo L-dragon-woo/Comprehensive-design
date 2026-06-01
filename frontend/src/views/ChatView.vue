@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { MapPin, Send } from "lucide-vue-next"
-import { computed, nextTick, ref } from "vue"
+import { computed, nextTick, onMounted, ref } from "vue"
 import AnalysisSummaryCard from "@/components/AnalysisSummaryCard.vue"
 import AppHeader from "@/components/AppHeader.vue"
 import BaseButton from "@/components/BaseButton.vue"
@@ -8,11 +8,12 @@ import BottomNav from "@/components/BottomNav.vue"
 import ChatBubble from "@/components/ChatBubble.vue"
 import ChatTypingIndicator from "@/components/ChatTypingIndicator.vue"
 import PageContainer from "@/components/PageContainer.vue"
-import { apiFetch } from "@/lib/api"
-import { getLastAnalysis, type ChatMessage } from "@/lib/skinai"
+import { apiFetch, getMyAnalysis } from "@/lib/api"
+import { getAnalysisImage, getLastAnalysis, getLastAnalysisId, normalizeAnalysisResponse, type AnalysisResult, type ChatMessage } from "@/lib/skinai"
 
-const analysis = getLastAnalysis()
-const chatAnalysis = analysis?.rawAnalysis || analysis
+const analysisId = getLastAnalysisId()
+const analysis = ref<AnalysisResult | null>(null)
+const chatAnalysis = computed(() => analysis.value?.rawAnalysis || analysis.value)
 const suggestedQuestions = [
   "추천 시술을 쉽게 설명해줘",
   "가장 먼저 상담받을 시술은 뭐야?",
@@ -29,6 +30,7 @@ const messages = ref<ChatMessage[]>([
 ])
 const input = ref("")
 const isLoading = ref(false)
+const historyLoading = ref(false)
 const showSuggestions = ref(true)
 const messagesEnd = ref<HTMLElement | null>(null)
 const sessionId = ref<string | null>(null)
@@ -49,7 +51,7 @@ async function requestAIResponse(question: string) {
   const res = await apiFetch("/api/consultations/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: question, sessionId: sessionId.value, analysis: chatAnalysis, history }),
+    body: JSON.stringify({ message: question, sessionId: sessionId.value, analysis: chatAnalysis.value, analysisId: analysisId || undefined, history }),
   })
   if (!res.ok) throw new Error(`AI 상담 요청에 실패했습니다. (${res.status})`)
   const data = await res.json()
@@ -86,6 +88,73 @@ function handleKeydown(event: KeyboardEvent) {
     handleSend()
   }
 }
+
+function parseHistoryMessage(value: unknown): ChatMessage | null {
+  if (!value || typeof value !== "object") return null
+  const item = value as Record<string, unknown>
+  const role = item.role === "user" || item.role === "assistant" ? item.role : null
+  const content = typeof item.content === "string" ? item.content.trim() : ""
+  if (!role || !content) return null
+  const createdAt = typeof item.createdAt === "string" ? item.createdAt : ""
+  const timestamp = createdAt ? new Date(createdAt) : new Date()
+  return {
+    id: typeof item.id === "string" ? item.id : `${createdAt || Date.now()}-${role}`,
+    role,
+    content,
+    timestamp: Number.isNaN(timestamp.getTime()) ? new Date() : timestamp,
+  }
+}
+
+async function loadConsultationHistory() {
+  historyLoading.value = true
+  try {
+    const query = analysisId ? `?analysisId=${encodeURIComponent(analysisId)}` : ""
+    const res = await apiFetch(`/api/consultations/messages${query}`)
+    if (!res.ok) return
+    const data = await res.json() as Record<string, unknown>
+    if (typeof data.sessionId === "string" && data.sessionId.trim()) sessionId.value = data.sessionId
+    const restored = Array.isArray(data.messages) ? data.messages.map(parseHistoryMessage).filter((message): message is ChatMessage => Boolean(message)) : []
+    if (restored.length) {
+      messages.value = restored
+      showSuggestions.value = !restored.some((message) => message.role === "user")
+      await scrollToBottom()
+    }
+  } catch {
+    // Keep the initial welcome message when stored chat history is unavailable.
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+async function loadAnalysisContext() {
+  const cached = getLastAnalysis()
+  if (cached?.rawAnalysis) {
+    analysis.value = {
+      ...normalizeAnalysisResponse(cached.rawAnalysis),
+      imageDataUrl: cached.imageDataUrl,
+      aiSummary: cached.aiSummary,
+    }
+  } else {
+    analysis.value = cached
+  }
+
+  if (!analysisId) return
+
+  try {
+    const saved = await getMyAnalysis(analysisId)
+    analysis.value = {
+      ...normalizeAnalysisResponse(saved.analysis),
+      imageDataUrl: getAnalysisImage(analysisId) || analysis.value?.imageDataUrl,
+    }
+  } catch {
+    // Keep the locally cached analysis if the saved analysis cannot be loaded.
+  }
+}
+
+onMounted(async () => {
+  await loadAnalysisContext()
+  await loadConsultationHistory()
+})
 </script>
 
 <template>
@@ -105,6 +174,7 @@ function handleKeydown(event: KeyboardEvent) {
             :image-data-url="analysis.imageDataUrl"
           />
           <ChatBubble v-for="message in messages" :key="message.id" :message="message" />
+          <ChatTypingIndicator v-if="historyLoading" />
           <ChatTypingIndicator v-if="isLoading" />
           <div ref="messagesEnd" />
         </div>

@@ -20,6 +20,7 @@ export interface HospitalApplication {
   submittedAt: string
   status: "submitted" | "reviewing" | "confirmed"
   includedItems: string[]
+  pdfUrl?: string
   analysisId?: string
   analysisSnapshot?: AnalysisResult
   submissionNote?: string
@@ -91,6 +92,71 @@ const treatmentLabels: Record<string, { name: string; reason: string; note: stri
   },
 }
 
+function treatmentMeta(name: string) {
+  const compact = name.replace(/\s+/g, "").toLowerCase()
+  if (compact.includes("볼꺼짐") || compact.includes("필러")) {
+    return {
+      name,
+      reason: "볼 부위 볼륨과 피부결 개선에 도움",
+      note: "필러와 스킨부스터 조합 여부는 대면 상담에서 볼륨 정도를 보고 결정하세요.",
+    }
+  }
+  if (compact.includes("보톡스") || compact.includes("botox")) {
+    return {
+      name,
+      reason: "표정 주름 완화에 도움",
+      note: "이마와 미간의 표정 사용 습관, 눈썹 처짐 가능성을 함께 확인하세요.",
+    }
+  }
+  if (compact.includes("피코") || compact.includes("토닝")) {
+    return treatmentLabels["Pico toning"]
+  }
+  if (compact.includes("리쥬란")) {
+    return treatmentLabels["Rejuran Healer"]
+  }
+  if (compact.includes("아쿠아")) {
+    return treatmentLabels.Aquapeel
+  }
+  return {
+    name,
+    reason: "AI 종합 분석 요약 기반 추천",
+    note: "전문가 상담 후 진행 여부를 결정하세요.",
+  }
+}
+
+function treatmentsFromAiSummary(summary?: string) {
+  if (!summary?.trim()) return []
+  const lines = summary.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+  const treatments: Array<{ name: string; match: string; reason: string; note: string }> = []
+  let current: { name: string; match: string; reason: string; note: string } | null = null
+
+  for (const rawLine of lines) {
+    const line = rawLine
+      .replace(/^[-*]\s+/, "")
+      .replace(/\*\*(.+?)\*\*/g, "$1")
+      .trim()
+    const treatmentMatch = line.match(/^[-*]?\s*권장\s*시술\s*:\s*(.+)$/)
+    if (treatmentMatch) {
+      if (current) treatments.push(current)
+      const rawName = treatmentMatch[1]
+        .replace(/\s*\(code\s+[^)]+\)/i, "")
+        .replace(/\s*\([A-Z]+_\d+\)\s*$/i, "")
+        .trim()
+      const meta = treatmentMeta(rawName)
+      current = { name: meta.name, match: "추천", reason: meta.reason, note: meta.note }
+      continue
+    }
+
+    const featureMatch = line.match(/^[-*]?\s*시술\s*특징\s*:\s*(.+)$/)
+    if (featureMatch && current) {
+      current.reason = featureMatch[1].trim()
+    }
+  }
+
+  if (current) treatments.push(current)
+  return treatments
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {}
 }
@@ -136,6 +202,7 @@ export function normalizeAnalysisResponse(payload: unknown): AnalysisResult {
   const homogenity = asRecord(source.homogenity)
   const cheekSagging = asRecord(source.cheek_sagging)
   const chinSagging = asRecord(source.chin_sagging)
+  const aiSummary = typeof source.aiSummary === "string" ? source.aiSummary : typeof root.aiSummary === "string" ? root.aiSummary : undefined
 
   // Build detailed per-region metrics from pipeline output
   const pipelineMetrics: AnalysisMetric[] = []
@@ -212,8 +279,13 @@ export function normalizeAnalysisResponse(payload: unknown): AnalysisResult {
             .slice(0, 3)
             .map((metric) => metric.title)
 
-  const treatments = Array.isArray(source.treatments)
-    ? source.treatments.map((treatment) => {
+  const sourceTreatments = Array.isArray(source.treatments) ? source.treatments : []
+  const directTreatments = sourceTreatments.map((treatment) => {
+    if (typeof treatment === "string") {
+      const meta = treatmentLabels[treatment] || treatmentMeta(treatment)
+      return { name: meta.name, match: "추천", reason: meta.reason, note: meta.note }
+    }
+
         const item = asRecord(treatment)
         return {
           name: String(item.name || "추천 시술"),
@@ -222,17 +294,13 @@ export function normalizeAnalysisResponse(payload: unknown): AnalysisResult {
           note: String(item.note || "전문가 상담 후 진행 여부를 결정하세요."),
         }
       })
-    : (asStringArray(source.recommendedTreatments || source.treatments || source.recommendations).length
-        ? asStringArray(source.recommendedTreatments || source.treatments || source.recommendations)
-        : ["Rejuran Healer", "Pico toning", "Aquapeel"]
-      ).map((name) => {
-        const meta = treatmentLabels[name] || {
-          name,
-          reason: "AI 분석 결과 기반 추천",
-          note: "전문가 상담 후 진행 여부를 결정하세요.",
-        }
+  const fallbackTreatmentNames = asStringArray(source.recommendedTreatments)
+  const fallbackTreatments = fallbackTreatmentNames.map((name) => {
+        const meta = treatmentLabels[name] || treatmentMeta(name)
         return { name: meta.name, match: "추천", reason: meta.reason, note: meta.note }
       })
+  const summaryTreatments = treatmentsFromAiSummary(aiSummary)
+  const treatments = summaryTreatments.length ? summaryTreatments : directTreatments.length ? directTreatments : fallbackTreatments
 
   const recommendations = asStringArray(source.managementTips || source.careTips || source.recommendations).length
     ? asStringArray(source.managementTips || source.careTips || source.recommendations).map((item) => treatmentLabels[item]?.note || item)
@@ -252,7 +320,7 @@ export function normalizeAnalysisResponse(payload: unknown): AnalysisResult {
     date: String(source.date || root.date || new Intl.DateTimeFormat("ko-KR").format(new Date())),
     skinType: normalizeSkinType(source.skinType),
     rawAnalysis: source,
-    aiSummary: typeof source.aiSummary === "string" ? source.aiSummary : typeof root.aiSummary === "string" ? root.aiSummary : undefined,
+    aiSummary,
     imageDataUrl: typeof source.imageDataUrl === "string" ? source.imageDataUrl : typeof root.imageDataUrl === "string" ? root.imageDataUrl : undefined,
     metrics,
     concerns,

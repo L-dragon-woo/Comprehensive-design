@@ -174,74 +174,180 @@ def _fallback_chat(message: str, analysis: dict[str, Any] | None = None) -> str:
     normalized = message.lower()
     summary = _analysis_summary(analysis)
 
-    if any(keyword in message for keyword in [_t("\\ub098이"), _t("\\uba87 \\uc0b4"), _t("\\uc5f0령")]) or "age" in normalized:
+    if "리쥬란" in message or "rejuran" in normalized:
         return (
-            summary
-            + "\n\n"
-            + _t(
-                "\\ub098이 추정은 진단값이 아니라 이미지 "
-                "기반 모델 추정치입니다. 조명, 표정, "
-                "화장에 따라 달라질 수 있어서 참고용으로만 "
-                "보는 것이 좋습니다."
-            )
+            "리쥬란은 피부 속 회복 성분인 PN/PDRN 계열 성분을 주사해서 피부결, 탄력, 잔주름, 장벽 회복을 돕는 시술입니다.\n\n"
+            "쉽게 말하면 꺼진 부위를 채우는 필러라기보다, 피부 컨디션을 천천히 끌어올리는 재생 주사에 가깝습니다. "
+            "효과는 보통 즉시 드라마틱하게 보이기보다 몇 주에 걸쳐 피부결과 탄력이 완만하게 좋아지는 쪽입니다.\n\n"
+            "현재 분석에서 주름/탄력 쪽을 같이 상담해볼 수 있으니, 병원에서는 리쥬란 단독이 맞는지 스킨부스터나 탄력 장비와 병행이 나은지 확인해 보시면 좋습니다."
         )
 
-    if any(keyword in message for keyword in [_t("\\uc0c9소"), _t("\\uc7a1티"), _t("\\uae30미"), _t("\\ud53c코")]) or "pigment" in normalized:
+    if "피코" in message or "토닝" in message or "picotoning" in normalized or "pico" in normalized:
         return (
-            summary
-            + "\n\n"
-            + _t(
-                "\\uc0c9소 고민은 피코토닝 계열 상담을 "
-                "우선 고려할 수 있습니다. 다만 자외선 "
-                "노출, 최근 레이저 이력, 피부 민감도에 "
-                "따라 강도와 주기를 조절해야 합니다."
-            )
+            "피코토닝은 짧은 시간에 강한 레이저 에너지를 쏘아 색소를 잘게 분해하는 색소 레이저 계열 시술입니다.\n\n"
+            "기미, 잡티, 색소침착처럼 색소 고민이 있을 때 상담하는 경우가 많고, 한 번에 세게 하기보다 피부 반응을 보면서 여러 번 나누어 진행하는 편이 일반적입니다.\n\n"
+            "시술 전에는 최근 레이저 이력, 햇빛 노출, 피부 민감도, 기미 여부를 꼭 같이 확인해야 합니다."
         )
 
-    if any(keyword in message for keyword in [_t("\\uc8fc름"), _t("\\ud0c4력"), _t("\\ub9ac쥬란"), _t("\\ud68c복")]) or "wrinkle" in normalized:
+    if "스킨부스터" in message or "skinbooster" in normalized or "skin booster" in normalized:
         return (
-            summary
-            + "\n\n"
-            + _t(
-                "\\uc8fc름과 탄력 고민은 리쥬란, 스킨부스터, "
-                "탄력 장비 상담을 비교해볼 수 있습니다. "
-                "회복 기간이 짧아야 한다면 강도를 낮춰 "
-                "단계적으로 진행하는 편이 안전합니다."
-            )
+            "스킨부스터는 피부 속에 수분감이나 탄력 개선 성분을 얕게 주입해서 피부결, 광채, 건조감을 개선하는 시술군입니다.\n\n"
+            "리쥬란도 넓게 보면 스킨부스터 계열로 설명되는 경우가 있지만, 병원마다 제품과 목적이 다릅니다. "
+            "건조함과 피부결이 중심이면 스킨부스터, 잔주름과 회복/탄력까지 같이 보면 리쥬란을 비교해볼 수 있습니다."
         )
 
-    if any(keyword in message for keyword in [_t("\\uc6b0선"), _t("\\uba3c저"), _t("\\uc21c위"), _t("\\ucd94천")]) or "priority" in normalized:
+    if "보톡스" in message or "botox" in normalized or "톡신" in message:
         return (
-            summary
-            + "\n\n"
-            + _t(
-                "\\uc6b0선순위는 1) 피부 장벽과 수분 관리, "
-                "2) 색소 상담, 3) 탄력/주름 상담 순서가 "
-                "무난합니다. 한 번에 강한 시술을 묶기보다 "
-                "반응을 보면서 단계적으로 진행하는 것을 "
-                "추천합니다."
-            )
+            "보톡스는 근육 움직임을 일시적으로 줄여 표정 주름을 완화하는 주사 시술입니다.\n\n"
+            "이마, 미간, 눈가처럼 표정에 따라 접히는 주름에는 도움이 될 수 있지만, 피부 자체의 탄력 저하나 꺼짐에는 리쥬란, 스킨부스터, 리프팅, 필러 같은 다른 선택지가 더 맞을 수 있습니다."
         )
 
-    if any(keyword in message for keyword in [_t("\\uc8fc의"), _t("\\ubd80작용"), _t("\\ud655인"), _t("\\ud558면 \\uc548")]) or "risk" in normalized:
-        return _t(
-            "\\uc2dc술 전에는 최근 시술 이력, 알레르기, "
-            "복용 중인 약, 임신 가능성, 콘로이드 체질, "
-            "탄닝 및 자외선 노출 계획을 상담실에 "
-            "공유해 주세요. 붉어짐이나 색소침착 위험은 "
-            "피부 상태에 따라 다르니 패치/테스트 여부를 "
-            "확인하는 것이 좋습니다."
+    if "필러" in message or "filler" in normalized:
+        return (
+            "필러는 꺼진 부위나 볼륨이 부족한 부위에 주입해서 모양을 보완하는 시술입니다.\n\n"
+            "볼꺼짐, 팔자 부위, 입가 라인처럼 구조적인 꺼짐이 뚜렷할 때 상담할 수 있습니다. "
+            "다만 과교정이나 혈관 관련 부작용 가능성이 있어, 반드시 경험 있는 의료진과 용량과 위치를 보수적으로 정하는 것이 중요합니다."
+        )
+
+    if any(keyword in message for keyword in ["차이", "비교", "중 무엇", "뭐가 좋아", "뭐가 나아"]):
+        return (
+            "간단히 비교하면 목적이 다릅니다.\n\n"
+            "리쥬란은 피부결, 잔주름, 탄력, 회복을 천천히 개선하는 재생 주사 쪽이고, "
+            "피코토닝은 잡티나 색소침착을 줄이는 색소 레이저 쪽입니다.\n\n"
+            "색소가 가장 신경 쓰이면 피코토닝 상담을 먼저, 피부결과 잔주름이 더 신경 쓰이면 리쥬란이나 스킨부스터 상담을 먼저 잡는 편이 자연스럽습니다."
+        )
+
+    if any(keyword in message for keyword in ["추천", "우선", "먼저", "순위"]) or "priority" in normalized:
+        return (
+            f"분석 요약을 기준으로 보면 {summary}입니다.\n\n"
+            "상담 우선순위는 1) 피부 장벽과 수분 관리, 2) 색소 레이저 상담, 3) 주름/탄력 시술 상담 순서가 무난합니다.\n\n"
+            "한 번에 여러 시술을 강하게 묶기보다, 가장 신경 쓰이는 고민 하나를 먼저 정하고 피부 반응을 보면서 단계적으로 진행하는 쪽이 안전합니다."
+        )
+
+    if any(keyword in message for keyword in ["색소", "잡티", "기미"]) or "pigment" in normalized:
+        return (
+            "색소 고민은 피코토닝, IPL, 미백 관리 같은 색소 계열 상담을 먼저 고려할 수 있습니다.\n\n"
+            "다만 기미가 섞여 있거나 피부가 예민하면 강한 레이저가 오히려 자극이 될 수 있어서, 병원에서 색소 종류와 최근 햇빛 노출 여부를 먼저 확인하는 게 좋습니다."
+        )
+
+    if any(keyword in message for keyword in ["주름", "탄력", "회복"]) or "wrinkle" in normalized:
+        return (
+            "주름과 탄력 고민은 원인에 따라 선택지가 달라집니다.\n\n"
+            "표정 때문에 접히는 주름은 보톡스, 피부결과 잔주름은 리쥬란이나 스킨부스터, 처짐이 중심이면 리프팅 장비 상담이 더 잘 맞을 수 있습니다."
+        )
+
+    if any(keyword in message for keyword in ["주의", "부작용", "확인", "하면 안"]) or "risk" in normalized:
+        return (
+            "시술 전에는 최근 시술 이력, 알레르기, 복용 중인 약, 임신 가능성, 켈로이드 체질, 햇빛 노출 계획을 상담실에 공유해 주세요.\n\n"
+            "붉어짐, 멍, 색소침착, 건조감은 피부 상태에 따라 달라질 수 있으니 회복 기간과 사후관리 방법도 같이 확인하는 것이 좋습니다."
+        )
+
+    if any(keyword in message for keyword in ["나이", "몇 살", "연령"]) or "age" in normalized:
+        return (
+            f"{summary}\n\n"
+            "피부 나이는 진단명이 아니라 이미지 기반 추정값입니다. 조명, 표정, 화장 상태에 따라 달라질 수 있어서 참고용으로 보는 것이 좋습니다."
         )
 
     return (
-        summary
-        + "\n\n"
-        + _t(
-            "\\uad81금한 항목을 색소, 주름, 탄력, 수분, "
-            "시술 우선순위처럼 구체적으로 물어보면 "
-            "그 기준에 맞춰 상담 방향을 정리해드릴게요."
-        )
+        "지금은 OpenAI 호출 한도 때문에 간단 상담 모드로 답변하고 있습니다.\n\n"
+        "리쥬란, 피코토닝, 스킨부스터, 보톡스, 필러처럼 궁금한 시술명을 물어보면 목적, 차이, 주의사항 위주로 바로 설명해드릴게요."
     )
+
+
+def _score_value(value: Any) -> float | None:
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+def _score_phrase(score: float | None) -> str:
+    if score is None:
+        return "확인 필요"
+    if score >= 85:
+        return "양호"
+    if score >= 70:
+        return "관찰 필요"
+    return "우선 관리 필요"
+
+
+def _average_scores(values: list[Any]) -> float | None:
+    nums = [_score_value(value) for value in values]
+    nums = [value for value in nums if value is not None]
+    return round(sum(nums) / len(nums), 1) if nums else None
+
+
+def _deterministic_report(analysis: dict[str, Any], gender: str) -> str:
+    """Return a card-friendly report when the LLM agent cannot finish."""
+    if analysis.get("status") == "rejected":
+        quality = analysis.get("quality") or {}
+        reasons = quality.get("reasons") if isinstance(quality, dict) else None
+        reason_text = ", ".join(str(reason) for reason in reasons) if isinstance(reasons, list) else "촬영 품질 기준 미달"
+        return (
+            "# AI 종합 분석\n\n"
+            "[Step 1] 피부 진단 결과\n"
+            f"- **촬영 품질: 재촬영 필요**\n  현재 이미지는 {reason_text} 항목 때문에 정량 분석 신뢰도가 낮습니다.\n\n"
+            "[Step 2] 추천 방향\n"
+            "- **재촬영 우선**\n  정면 얼굴이 화면 중앙에 크게 보이도록 하고, 흔들림이 없게 밝은 환경에서 다시 촬영해 주세요.\n\n"
+            "[Step 3] 학술 근거\n"
+            "정량 점수가 확보되지 않아 논문 근거 기반 시술 추천은 보류했습니다."
+        )
+
+    age = _score_value(analysis.get("age"))
+    pigment = analysis.get("pigment") or {}
+    wrinkle = analysis.get("wrinkle") or {}
+    homogenity = analysis.get("homogenity") or {}
+    sagging = [
+        (analysis.get("cheek_sagging") or {}).get("total"),
+        (analysis.get("chin_sagging") or {}).get("total"),
+    ]
+
+    pigment_avg = _average_scores([pigment.get("left"), pigment.get("right")])
+    wrinkle_avg = _average_scores(list(wrinkle.values()) if isinstance(wrinkle, dict) else [])
+    texture_avg = _average_scores([homogenity.get("radiance"), homogenity.get("texture")])
+    sagging_avg = _average_scores(sagging)
+
+    diagnosis_items: list[tuple[str, float | None, str]] = [
+        ("색소", pigment_avg, "좌우 색소 점수를 기준으로 잡티와 색소침착 관리 우선도를 판단했습니다."),
+        ("주름", wrinkle_avg, "이마, 눈가, 팔자, 입가 턱, 볼꺼짐 점수를 함께 반영했습니다."),
+        ("피부결/광채", texture_avg, "광채와 거칠기 점수로 피부 균일도와 장벽 컨디션을 봤습니다."),
+    ]
+    if sagging_avg is not None:
+        diagnosis_items.append(("탄력/처짐", sagging_avg, "볼과 턱 라인의 처짐 지표를 함께 확인했습니다."))
+
+    ranked = sorted(
+        [item for item in diagnosis_items if item[1] is not None],
+        key=lambda item: item[1] or 101,
+    )
+    top = ranked[:3] if ranked else diagnosis_items[:3]
+
+    lines = ["# AI 종합 분석", "", "[Step 1] 피부 진단 결과"]
+    if age is not None:
+        lines.append(f"- **예상 피부 나이: {age:.1f}세**")
+        lines.append("  사진 기반 추정값이므로 조명, 표정, 화장 상태에 따라 달라질 수 있습니다.")
+    for label, score, note in diagnosis_items:
+        score_text = f"{score:.1f}점" if score is not None else "확인 필요"
+        lines.append(f"- **{label}: {score_text}**")
+        lines.append(f"  {_score_phrase(score)} 상태입니다. {note}")
+
+    lines.extend(["", "[Step 2] 추천 시술 및 관리 우선순위"])
+    treatment_map = {
+        "색소": "색소 점수가 낮거나 좌우 차이가 크면 피코토닝, IPL, 미백 관리 상담을 우선 고려할 수 있습니다.",
+        "주름": "주름 점수가 낮은 부위는 보툴리눔 톡신, 스킨부스터, 리쥬란, 탄력 장비 상담을 비교해볼 수 있습니다.",
+        "피부결/광채": "피부결과 광채는 수분 장벽 관리, 스킨부스터, 진정 관리처럼 회복 부담이 낮은 방향부터 시작하는 편이 좋습니다.",
+        "탄력/처짐": "처짐이 관찰되면 리프팅 장비, 콜라겐 부스터, 윤곽 상담을 단계적으로 검토할 수 있습니다.",
+    }
+    for label, score, _ in top:
+        score_text = f"{score:.1f}점" if score is not None else "확인 필요"
+        lines.append(f"- **{label} ({score_text})**")
+        lines.append(f"  {treatment_map.get(label, '전문의 상담으로 관리 우선순위를 정하는 것이 좋습니다.')}")
+
+    lines.extend([
+        "",
+        "[Step 3] 학술 근거",
+        "현재 OpenAI 호출 한도 문제로 beauty-agent의 PubMed 근거 생성까지 완료하지 못했습니다.",
+        "따라서 이 리포트는 저장된 AI 분석 점수와 내부 시술 규칙을 기준으로 만든 임시 종합 분석이며, 실제 시술 결정은 피부과 전문의 상담으로 확정해야 합니다.",
+    ])
+    return "\n".join(lines).strip()
 
 
 def _extract_llm_text(content: Any) -> str:
@@ -431,7 +537,7 @@ def analyses_summary(request: AnalysisSummaryRequest) -> dict[str, Any]:
 
     openai_key = (os.getenv("OPENAI_API_KEY") or "").strip()
     if not openai_key or openai_key in {"sk-...", "sk-"}:
-        return {"content": _fallback_chat("레포트 작성해줘", pipeline_result), "sessionId": session_id, "mode": "fallback"}
+        return {"content": _deterministic_report(pipeline_result, gender), "sessionId": session_id, "mode": "deterministic_report"}
 
     try:
         from tools.skin_analyze import _flatten, aggregate_regions
@@ -492,7 +598,7 @@ def analyses_summary(request: AnalysisSummaryRequest) -> dict[str, Any]:
             content = _llm_chat_with_analysis("피부 분석 결과를 한국어로 요약해줘.", pipeline_result)
             return {"content": content, "sessionId": session_id, "mode": "llm_fallback"}
         except Exception:
-            return {"content": _fallback_chat("레포트", pipeline_result), "sessionId": session_id, "mode": "fallback"}
+            return {"content": _deterministic_report(pipeline_result, gender), "sessionId": session_id, "mode": "deterministic_report"}
 
 
 _ALLOWED_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}

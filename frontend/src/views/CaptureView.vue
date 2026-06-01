@@ -29,6 +29,7 @@ const faceDetected = ref(false)
 const faceDetectionSupported = ref(false)
 const faceCheckMessage = ref("얼굴을 타원 안에 맞춰주세요")
 const faceWarningShown = ref(false)
+const cameraReady = ref(false)
 
 let stream: MediaStream | null = null
 let faceDetector: InstanceType<NonNullable<typeof window.FaceDetector>> | null = null
@@ -110,7 +111,12 @@ async function checkFace() {
 
 async function startCamera() {
   error.value = ""
+  cameraReady.value = false
   stopCamera()
+  if (!navigator.mediaDevices?.getUserMedia) {
+    error.value = "이 브라우저에서는 카메라를 사용할 수 없습니다."
+    return
+  }
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: facingMode.value, width: { ideal: 1280 }, height: { ideal: 960 } },
@@ -118,12 +124,26 @@ async function startCamera() {
     })
     if (video.value) {
       video.value.srcObject = stream
+      await video.value.play().catch(() => undefined)
     }
+    cameraReady.value = true
+    faceCheckMessage.value = faceDetectionSupported.value ? "얼굴을 타원 안에 맞춰주세요" : "카메라가 준비되었습니다"
     if (faceDetectionSupported.value) {
       faceCheckInterval = setInterval(checkFace, 600)
     }
-  } catch {
-    error.value = "카메라를 사용할 수 없습니다. 권한을 허용해 주세요."
+  } catch (e) {
+    const name = e instanceof DOMException ? e.name : ""
+    if (name === "NotAllowedError" || name === "SecurityError") {
+      error.value = "카메라 권한이 차단되어 있습니다. 브라우저 주소창의 카메라 권한을 허용해 주세요."
+    } else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+      error.value = "사용 가능한 카메라를 찾지 못했습니다."
+    } else if (name === "NotReadableError" || name === "TrackStartError") {
+      error.value = "다른 앱이 카메라를 사용 중일 수 있습니다. 화상회의 앱이나 카메라 앱을 닫고 다시 시도해 주세요."
+    } else if (name === "OverconstrainedError" || name === "ConstraintNotSatisfiedError") {
+      error.value = "요청한 카메라 설정을 사용할 수 없습니다. 카메라 전환 버튼을 눌러 다시 시도해 주세요."
+    } else {
+      error.value = "카메라를 시작하지 못했습니다. 새로고침 후 다시 시도해 주세요."
+    }
   }
 }
 
@@ -134,12 +154,17 @@ function stopCamera() {
   }
   stream?.getTracks().forEach((track) => track.stop())
   stream = null
+  cameraReady.value = false
 }
 
 function capture() {
   const v = video.value
   const c = canvas.value
   if (!v || !c) return
+  if (!cameraReady.value || v.readyState < 2 || !v.videoWidth || !v.videoHeight) {
+    error.value = "카메라 화면을 준비하는 중입니다. 잠시 후 다시 촬영해 주세요."
+    return
+  }
 
   if (faceDetectionSupported.value && !faceDetected.value) {
     if (!faceWarningShown.value) {
@@ -310,7 +335,7 @@ onBeforeUnmount(() => {
 
     <div class="px-5 py-6 pb-[max(24px,env(safe-area-inset-bottom))]">
       <p v-if="!capturedImage" class="mb-4 text-center text-xs text-primary-foreground/60">
-        얼굴을 정면으로 바라보고 타원 안에 맞춰주세요
+        {{ cameraReady ? "얼굴을 정면으로 바라보고 타원 안에 맞춰주세요" : "카메라를 준비하는 중입니다" }}
       </p>
 
       <div v-if="capturedImage" class="mx-auto flex max-w-sm items-center gap-3">
@@ -328,7 +353,11 @@ onBeforeUnmount(() => {
         <div class="w-14" />
 
         <button
-          class="flex h-20 w-20 items-center justify-center rounded-full bg-primary shadow-lg transition-all active:scale-95"
+          :class="[
+            'flex h-20 w-20 items-center justify-center rounded-full bg-primary shadow-lg transition-all active:scale-95',
+            !cameraReady && 'opacity-60',
+          ]"
+          :disabled="!cameraReady"
           title="촬영하기"
           @click="capture"
         >

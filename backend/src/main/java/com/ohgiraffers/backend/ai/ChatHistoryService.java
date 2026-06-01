@@ -1,7 +1,9 @@
 package com.ohgiraffers.backend.ai;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 
@@ -27,6 +29,20 @@ public class ChatHistoryService {
                 Instant.now()
         );
         return repository.save(history);
+    }
+
+    public List<ChatHistoryDocument> latestSessionTurns(String username, String analysisId) {
+        List<ChatHistoryDocument> candidates = stringValue(analysisId) == null
+                ? repository.findByUsernameOrderByCreatedAtDesc(username)
+                : repository.findByUsernameAndAnalysisIdOrderByCreatedAtDesc(username, analysisId);
+
+        return candidates.stream()
+                .map(ChatHistoryDocument::getSessionId)
+                .filter(Objects::nonNull)
+                .filter(sessionId -> !sessionId.isBlank())
+                .findFirst()
+                .map(sessionId -> repository.findByUsernameAndSessionIdOrderByCreatedAtAsc(username, sessionId))
+                .orElseGet(List::of);
     }
 
     private String stringValue(Object value) {

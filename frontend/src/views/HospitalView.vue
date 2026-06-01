@@ -27,8 +27,7 @@ const coords = ref<{ x: string; y: string } | null>(null)
 
 const showSubmitModal = ref(false)
 const submitNote = ref("")
-const selectedItems = ref<string[]>(["AI 분석 결과", "추천 시술", "피부 지표"])
-const availableItems = ["AI 분석 결과", "추천 시술", "피부 지표", "관리 추천"]
+const includedReportItems = ["AI 분석 결과", "AI 종합 분석", "추천 시술", "피부 지표", "관리 추천"]
 const currentAnalysis = ref<AnalysisResult | null>(null)
 const showMetricsDetail = ref(false)
 
@@ -40,12 +39,6 @@ function openSubmitModal() {
 
 function closeSubmitModal() {
   showSubmitModal.value = false
-}
-
-function toggleItem(item: string) {
-  const idx = selectedItems.value.indexOf(item)
-  if (idx >= 0) selectedItems.value.splice(idx, 1)
-  else selectedItems.value.push(item)
 }
 
 function previewPdf() {
@@ -218,7 +211,7 @@ function submitReport() {
     hospitalName: selectedHospital.value.name,
     submittedAt: new Date().toISOString(),
     status: "submitted",
-    includedItems: [...selectedItems.value],
+    includedItems: [...includedReportItems],
     analysisId: getLastAnalysisId() || undefined,
     analysisSnapshot: currentAnalysis.value || undefined,
     submissionNote: submitNote.value || undefined,
@@ -392,22 +385,6 @@ onMounted(() => loadHospitals(true))
             <div v-else class="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
               <FileText class="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
               <p>분석 결과가 없습니다. 먼저 피부 분석을 진행해 주세요.</p>
-            </div>
-
-            <!-- 포함 항목 선택 -->
-            <div>
-              <h3 class="mb-3 font-semibold">포함할 항목</h3>
-              <div class="space-y-2">
-                <label v-for="item in availableItems" :key="item" class="flex cursor-pointer items-center gap-3 rounded-xl border border-border p-3">
-                  <input
-                    type="checkbox"
-                    :checked="selectedItems.includes(item)"
-                    class="h-4 w-4 rounded accent-primary"
-                    @change="toggleItem(item)"
-                  />
-                  <span class="text-sm font-medium">{{ item }}</span>
-                </label>
-              </div>
             </div>
 
             <!-- 메모 -->

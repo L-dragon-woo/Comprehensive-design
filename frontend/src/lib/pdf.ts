@@ -36,6 +36,7 @@ function formatAiSummary(value: string): string {
 
 function buildPrintHtml(options: PdfOptions): string {
   const { analysis, user, notes, aiSummary, capturedImageDataUrl } = options
+  const effectiveAiSummary = aiSummary?.trim() || analysis.aiSummary?.trim() || ""
   const date = analysis.date || new Intl.DateTimeFormat("ko-KR").format(new Date())
 
   const metricsRows = (analysis.metrics || [])
@@ -84,11 +85,11 @@ function buildPrintHtml(options: PdfOptions): string {
     </div>`
     : ""
 
-  const aiSummarySection = aiSummary?.trim()
+  const aiSummarySection = effectiveAiSummary
     ? `
     <div class="section">
       <h2>AI 종합 분석 요약</h2>
-      <div class="ai-summary-box">${formatAiSummary(aiSummary)}</div>
+      <div class="ai-summary-box">${formatAiSummary(effectiveAiSummary)}</div>
     </div>`
     : ""
 

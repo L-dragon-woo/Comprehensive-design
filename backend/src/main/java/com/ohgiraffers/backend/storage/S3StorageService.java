@@ -59,9 +59,13 @@ public class S3StorageService {
                 .signatureDuration(properties.presignedUrlDuration())
                 .putObjectRequest(request)
                 .build();
-        URL url = presigner.presignPutObject(presignRequest).url();
-        Instant expiresAt = Instant.now().plus(properties.presignedUrlDuration()).truncatedTo(ChronoUnit.SECONDS);
-        return new PresignedUpload(key, url.toString(), "PUT", normalizedContentType, expiresAt.toString());
+        try {
+            URL url = presigner.presignPutObject(presignRequest).url();
+            Instant expiresAt = Instant.now().plus(properties.presignedUrlDuration()).truncatedTo(ChronoUnit.SECONDS);
+            return new PresignedUpload(key, url.toString(), "PUT", normalizedContentType, expiresAt.toString());
+        } catch (RuntimeException e) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "S3 presigned upload URL creation failed", e);
+        }
     }
 
     public StoredObject uploadReport(String username, String analysisId, MultipartFile file) {

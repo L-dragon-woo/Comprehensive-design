@@ -1,13 +1,6 @@
 name: Deploy to EKS
 
 on:
-  workflow_run:
-    workflows:
-      - CI
-    branches:
-      - dev
-    types:
-      - completed
   workflow_dispatch:
 
 concurrency:
@@ -98,6 +91,26 @@ jobs:
           MARIADB_PASSWORD: ${{ secrets.MARIADB_PASSWORD }}
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           SPRING_DATA_MONGODB_URI: ${{ secrets.SPRING_DATA_MONGODB_URI }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          PUBMED_API_KEY: ${{ secrets.PUBMED_API_KEY }}
+          NEO4J_URI: ${{ secrets.NEO4J_URI }}
+          NEO4J_USERNAME: ${{ secrets.NEO4J_USERNAME }}
+          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
+          NEO4J_DATABASE: ${{ secrets.NEO4J_DATABASE }}
+          AURA_API_CLIENT_ID: ${{ secrets.AURA_API_CLIENT_ID }}
+          AURA_API_CLIENT_SECRET: ${{ secrets.AURA_API_CLIENT_SECRET }}
+          AGENT_ID: ${{ secrets.AGENT_ID }}
+          OPENAI_EMBED_MODEL: ${{ secrets.OPENAI_EMBED_MODEL }}
+          OPENAI_EMBED_DIMENSIONS: ${{ secrets.OPENAI_EMBED_DIMENSIONS }}
+          EMBED_BATCH_SIZE: ${{ secrets.EMBED_BATCH_SIZE }}
+          EMBED_MIN_BATCH_SIZE: ${{ secrets.EMBED_MIN_BATCH_SIZE }}
+          EMBED_MAX_RETRIES: ${{ secrets.EMBED_MAX_RETRIES }}
+          EMBED_RETRY_BASE_SECONDS: ${{ secrets.EMBED_RETRY_BASE_SECONDS }}
+          LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
+          LANGCHAIN_TRACING_V2: ${{ secrets.LANGCHAIN_TRACING_V2 }}
+          LANGCHAIN_PROJECT: ${{ secrets.LANGCHAIN_PROJECT }}
+          LANGCHAIN_ENDPOINT: ${{ secrets.LANGCHAIN_ENDPOINT }}
         run: |
           kubectl apply -f k8s/namespace.yaml
           kubectl create secret generic skinai-secret \
@@ -111,6 +124,26 @@ jobs:
             --from-literal=KAKAO_REST_API_KEY="$KAKAO_REST_API_KEY" \
             --from-literal=SPRING_DATA_MONGODB_URI="$SPRING_DATA_MONGODB_URI" \
             --from-literal=SPRING_MONGODB_URI="$SPRING_DATA_MONGODB_URI" \
+            --from-literal=OPENAI_API_KEY="$OPENAI_API_KEY" \
+            --from-literal=GOOGLE_API_KEY="$GOOGLE_API_KEY" \
+            --from-literal=PUBMED_API_KEY="$PUBMED_API_KEY" \
+            --from-literal=NEO4J_URI="$NEO4J_URI" \
+            --from-literal=NEO4J_USERNAME="$NEO4J_USERNAME" \
+            --from-literal=NEO4J_PASSWORD="$NEO4J_PASSWORD" \
+            --from-literal=NEO4J_DATABASE="$NEO4J_DATABASE" \
+            --from-literal=AURA_API_CLIENT_ID="$AURA_API_CLIENT_ID" \
+            --from-literal=AURA_API_CLIENT_SECRET="$AURA_API_CLIENT_SECRET" \
+            --from-literal=AGENT_ID="$AGENT_ID" \
+            --from-literal=OPENAI_EMBED_MODEL="$OPENAI_EMBED_MODEL" \
+            --from-literal=OPENAI_EMBED_DIMENSIONS="$OPENAI_EMBED_DIMENSIONS" \
+            --from-literal=EMBED_BATCH_SIZE="$EMBED_BATCH_SIZE" \
+            --from-literal=EMBED_MIN_BATCH_SIZE="$EMBED_MIN_BATCH_SIZE" \
+            --from-literal=EMBED_MAX_RETRIES="$EMBED_MAX_RETRIES" \
+            --from-literal=EMBED_RETRY_BASE_SECONDS="$EMBED_RETRY_BASE_SECONDS" \
+            --from-literal=LANGCHAIN_API_KEY="$LANGCHAIN_API_KEY" \
+            --from-literal=LANGCHAIN_TRACING_V2="$LANGCHAIN_TRACING_V2" \
+            --from-literal=LANGCHAIN_PROJECT="$LANGCHAIN_PROJECT" \
+            --from-literal=LANGCHAIN_ENDPOINT="$LANGCHAIN_ENDPOINT" \
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Render manifests with immutable image tags

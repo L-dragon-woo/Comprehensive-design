@@ -8,9 +8,9 @@ Create a MongoDB Atlas cluster in the same AWS region as the application when po
 
 Create a database user and allow network access from the current EC2 public IP while testing. For production, prefer private networking or the narrowest possible CIDR.
 
-## 2. Set Backend Environment
+## 2. Set Compose Environment
 
-On EC2, edit `backend/.env`:
+On EC2, edit the root `.env` file next to `docker-compose.yml`:
 
 ```env
 SPRING_DATA_MONGODB_URI=mongodb+srv://<username>:<password>@<cluster-host>/skinai?retryWrites=true&w=majority
@@ -18,6 +18,8 @@ SPRING_MONGODB_URI=mongodb+srv://<username>:<password>@<cluster-host>/skinai?ret
 ```
 
 Do not commit real Atlas credentials.
+
+Why root `.env`: Docker Compose interpolates `${SPRING_DATA_MONGODB_URI}` from the shell or the root `.env` file. Values in `backend/.env` are loaded into the container later, but the explicit `environment:` block in `docker-compose.yml` wins over `env_file` values.
 
 ## 3. Restart Backend
 
@@ -33,10 +35,11 @@ Then verify:
 
 ```bash
 curl http://localhost:8080/actuator/health
+docker compose exec backend printenv SPRING_DATA_MONGODB_URI
 ```
 
 ## 4. Confirm Data Writes
 
-Run an analysis or chat flow that persists to MongoDB, then confirm the documents appear in Atlas.
+Run an analysis or chat flow that persists to MongoDB, then confirm the `skinai` database appears in Atlas Data Explorer.
 
 At this stage the local `mongo` container may still run because the compose stack includes it, but backend reads the Atlas URI from environment variables. After Atlas is verified, remove the local MongoDB service and dependency from compose and Kubernetes manifests.

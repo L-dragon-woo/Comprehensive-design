@@ -67,9 +67,12 @@ LANGCHAIN_PROJECT
 LANGCHAIN_ENDPOINT
 ```
 
-## Zero-Downtime Scope
+## Current Rollout Scope
 
-The EKS overlay sets `frontend` and `backend` to 2 replicas with:
+The EKS overlay currently keeps `frontend` at 2 replicas and `backend` at 1 replica.
+Backend is intentionally kept at 1 replica while the small RDS instance is connection-limited.
+
+`frontend` uses:
 
 ```text
 maxUnavailable: 0
@@ -78,6 +81,8 @@ readinessProbe
 PodDisruptionBudget
 rollout status checks
 ```
+
+When RDS capacity or connection pooling is ready for more traffic, raise backend replicas back to 2 and keep the same rolling update settings.
 
 The AI service stays at 1 replica because it still uses a `ReadWriteOnce` uploads PVC. For full AI zero-downtime rollout, move uploads to S3 or EFS and then raise AI replicas to 2.
 

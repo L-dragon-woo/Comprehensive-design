@@ -156,8 +156,15 @@ jobs:
       - name: Apply manifests
         run: kubectl apply -f /tmp/skinai.yaml
 
+      - name: Pin deployed images and backend replica count
+        run: |
+          kubectl set image deploy/frontend frontend=${{ steps.meta.outputs.frontend }}:${{ steps.meta.outputs.tag }} -n skinai
+          kubectl set image deploy/backend backend=${{ steps.meta.outputs.backend }}:${{ steps.meta.outputs.tag }} -n skinai
+          kubectl set image deploy/ai ai=${{ steps.meta.outputs.ai }}:${{ steps.meta.outputs.tag }} -n skinai
+          kubectl scale deploy/backend -n skinai --replicas=1
+
       - name: Wait for rollout
         run: |
+          kubectl rollout status deploy/frontend -n skinai --timeout=5m
+          kubectl rollout status deploy/backend -n skinai --timeout=5m
           kubectl rollout status deploy/ai -n skinai --timeout=10m
-          kubectl rollout status deploy/backend -n skinai --timeout=10m
-          kubectl rollout status deploy/frontend -n skinai --timeout=10m

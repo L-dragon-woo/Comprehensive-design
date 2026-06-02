@@ -3,6 +3,7 @@ package com.ohgiraffers.backend.config;
 import java.util.List;
 
 import com.ohgiraffers.backend.auth.JwtService;
+import com.ohgiraffers.backend.auth.RedisTokenService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -22,7 +23,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Configuration
 public class SecurityConfig {
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, JwtService jwtService) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, JwtService jwtService, RedisTokenService tokenService) throws Exception {
         RequestMatcher internalManagementPrometheus = request ->
                 request.getLocalPort() == 8081
                         && request.getMethod().equals(HttpMethod.GET.name())
@@ -45,21 +46,27 @@ public class SecurityConfig {
                         .requestMatchers(PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/api/ai/health")).permitAll()
                         .requestMatchers(PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/api/hospitals/search")).permitAll()
                         .anyRequest().authenticated())
-                .addFilterBefore(jwtAuthFilter(jwtService), UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthFilter(jwtService, tokenService), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
     @Bean
     PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
 
-    private OncePerRequestFilter jwtAuthFilter(JwtService jwtService) {
+    private OncePerRequestFilter jwtAuthFilter(JwtService jwtService, RedisTokenService tokenService) {
         return new OncePerRequestFilter() {
             @Override
             protected void doFilterInternal(jakarta.servlet.http.HttpServletRequest request, jakarta.servlet.http.HttpServletResponse response, jakarta.servlet.FilterChain filterChain) throws java.io.IOException, jakarta.servlet.ServletException {
                 String authorization = request.getHeader("Authorization");
                 if (authorization != null && authorization.startsWith("Bearer ")) {
                     try {
-                        String username = jwtService.verify(authorization.substring(7), "access").getSubject();
+                        String accessToken = authorization.substring(7);
+                        if (tokenService.isAccessTokenBlacklisted(accessToken)) {
+                            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+                            filterChain.doFilter(request, response);
+                            return;
+                        }
+                        String username = jwtService.verify(accessToken, "access").getSubject();
                         var auth = new UsernamePasswordAuthenticationToken(username, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
                         org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
                     } catch (Exception ignored) {

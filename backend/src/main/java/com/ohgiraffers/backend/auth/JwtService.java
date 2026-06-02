@@ -54,6 +54,11 @@ public class JwtService {
         return jwt;
     }
 
+    public long remainingTtlSeconds(DecodedJWT jwt) {
+        if (jwt.getExpiresAt() == null) return 0;
+        return Math.max(0, jwt.getExpiresAt().toInstant().getEpochSecond() - Instant.now().getEpochSecond());
+    }
+
     public long accessTtlSeconds() { return accessTtlSeconds; }
     public long refreshTtlSeconds() { return refreshTtlSeconds; }
 }

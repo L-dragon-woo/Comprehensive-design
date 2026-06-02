@@ -1,6 +1,10 @@
 package com.ohgiraffers.backend.auth;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.util.HexFormat;
 
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -23,7 +27,30 @@ public class RedisTokenService {
         redis.delete(key(username, refreshToken));
     }
 
+    public void blacklistAccessToken(String accessToken, long ttlSeconds) {
+        if (accessToken == null || accessToken.isBlank() || ttlSeconds <= 0) return;
+        redis.opsForValue().set(accessBlacklistKey(accessToken), "blacklisted", Duration.ofSeconds(ttlSeconds));
+    }
+
+    public boolean isAccessTokenBlacklisted(String accessToken) {
+        if (accessToken == null || accessToken.isBlank()) return false;
+        return Boolean.TRUE.equals(redis.hasKey(accessBlacklistKey(accessToken)));
+    }
+
     private String key(String username, String refreshToken) {
         return "auth:refresh:" + username + ":" + Integer.toHexString(refreshToken.hashCode());
+    }
+
+    private String accessBlacklistKey(String accessToken) {
+        return "auth:blacklist:access:" + sha256(accessToken);
+    }
+
+    private String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is not available", e);
+        }
     }
 }

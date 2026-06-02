@@ -111,9 +111,18 @@ public class AuthController {
 
     @PostMapping("/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void logout(@RequestBody LogoutRequest request) {
+    public void logout(@RequestBody LogoutRequest request, @RequestHeader(value = "Authorization", required = false) String authorization) {
         DecodedJWT jwt = jwtService.verify(request.refreshToken(), "refresh");
         tokenService.deleteRefreshToken(jwt.getSubject(), request.refreshToken());
+        String accessToken = bearerToken(authorization);
+        if (accessToken != null) {
+            try {
+                DecodedJWT accessJwt = jwtService.verify(accessToken, "access");
+                tokenService.blacklistAccessToken(accessToken, jwtService.remainingTtlSeconds(accessJwt));
+            } catch (RuntimeException ignored) {
+                // Expired or malformed access tokens do not need blacklist storage.
+            }
+        }
     }
 
     private AuthResponse issueTokens(String username) {
@@ -150,5 +159,11 @@ public class AuthController {
 
     private UserProfile adminProfile() {
         return new UserProfile(adminUsername, "SkinAI Admin", null, null, null, false, null, false, null);
+    }
+
+    private String bearerToken(String authorization) {
+        if (authorization == null || !authorization.startsWith("Bearer ")) return null;
+        String token = authorization.substring("Bearer ".length()).trim();
+        return token.isEmpty() ? null : token;
     }
 }

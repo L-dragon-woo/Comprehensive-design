@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compose:
+    name: Compose Config
+    runs-on: ubuntu-latest
+    env:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate docker compose config
+        run: docker compose config --quiet
+
+  ai:
+    name: AI
+    runs-on: ubuntu-latest
+    needs: compose
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile Python entrypoints
+        run: python -m compileall -q AI/api.py AI/main.py AI/pipeline AI/beauty-agent AI/auradb
+
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    needs: ai
+    env:
+      SPRING_DATA_REDIS_HOST: localhost
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATASOURCE_URL: jdbc:mariadb://localhost:3306/skinai_auth
+      SPRING_DATASOURCE_USERNAME: skinai
+      SPRING_DATASOURCE_PASSWORD: skinai
+      SPRING_DATA_MONGODB_URI: mongodb://localhost:27017/skinai
+      SPRING_MONGODB_URI: mongodb://localhost:27017/skinai
+      JWT_SECRET: ci-change-this-secret-to-a-long-random-value
+      KAKAO_REST_API_KEY: ""
+      AI_SERVICE_URL: http://localhost:8000
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Start backend dependencies
+        run: docker compose up -d --wait redis mariadb mongo
+
+      - name: Compile
+        working-directory: backend
+        run: |
+          chmod +x ./gradlew
+          ./gradlew compileJava --no-daemon
+
+      - name: Test
+        working-directory: backend
+        run: ./gradlew test --no-daemon
+
+      - name: Stop backend dependencies
+        if: always()
+        run: docker compose down -v
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    needs: backend
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.24.0
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm lint
+
+      - name: Build
+        run: pnpm build

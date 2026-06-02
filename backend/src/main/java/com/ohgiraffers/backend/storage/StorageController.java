@@ -4,6 +4,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,15 +29,28 @@ public class StorageController {
         return storageService.uploadReport(authentication.getName(), analysisId, file);
     }
 
+    @PostMapping("/api/files/images/presigned-upload")
+    public S3StorageService.PresignedUpload createImageUpload(
+            @RequestBody PresignedUploadRequest request,
+            Authentication authentication
+    ) {
+        return storageService.createAnalysisImageUpload(
+                authentication.getName(),
+                request.filename(),
+                request.contentType()
+        );
+    }
+
     @GetMapping("/api/files/url")
     public S3StorageService.StoredObject getFileUrl(
             @RequestParam String key,
             Authentication authentication
     ) {
-        String username = authentication.getName().replaceAll("[^a-zA-Z0-9._-]", "_");
-        if (!key.startsWith("reports/" + username + "/") && !key.startsWith("images/" + username + "/")) {
+        if (!storageService.isOwnedBy(authentication.getName(), key)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "file key is not owned by current user");
         }
         return new S3StorageService.StoredObject(key, storageService.presignedUrl(key), null);
     }
+
+    public record PresignedUploadRequest(String filename, String contentType, Long contentLength) {}
 }

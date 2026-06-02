@@ -3,7 +3,7 @@ import { Camera, RotateCcw, SwitchCamera, UserCheck, UserX, X } from "lucide-vue
 import { onBeforeUnmount, onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
 import BaseButton from "@/components/BaseButton.vue"
-import { apiFetch } from "@/lib/api"
+import { analyzePresignedImage, apiFetch, createImagePresignedUpload, uploadToPresignedUrl } from "@/lib/api"
 import { saveAnalysisImage, saveLastAnalysis, saveLastAnalysisId } from "@/lib/skinai"
 
 declare global {
@@ -208,20 +208,60 @@ async function compressImage(dataUrl: string, maxSizeMb = 5): Promise<Blob> {
   return await new Promise<Blob>((resolve) => c.toBlob((b) => resolve(b!), "image/jpeg", 0.85))
 }
 
+type UploadMode = "multipart" | "presigned"
+
+function preferredAnalysisUploadMode(): UploadMode {
+  const queryMode = new URLSearchParams(window.location.search).get("upload")
+  const storedMode = localStorage.getItem("skinai:analysis-upload-mode")
+  const envMode = import.meta.env.VITE_ANALYSIS_UPLOAD_MODE
+  return queryMode === "presigned" || storedMode === "presigned" || envMode === "presigned" ? "presigned" : "multipart"
+}
+
+function elapsedSince(start: number) {
+  return Math.round(performance.now() - start)
+}
+
 async function analyze() {
   if (!capturedImage.value) return
   const imageDataUrl = capturedImage.value
   startLoading("촬영 이미지를 분석용으로 준비하는 중입니다")
   try {
+    const totalStart = performance.now()
     const blob = await compressImage(imageDataUrl)
+    const uploadMode = preferredAnalysisUploadMode()
+    const timingsMs: Record<string, number> = { compress: elapsedSince(totalStart) }
     updateLoading("피부 분석 모델에 이미지를 전달하는 중입니다", 62)
-    const formData = new FormData()
-    formData.append("image", blob, "capture.jpg")
-    formData.append("gender", "female")
 
-    const res = await apiFetch("/api/analyses", { method: "POST", body: formData })
-    if (!res.ok) throw new Error(`분석 요청에 실패했습니다. (${res.status})`)
-    const data = await res.json() as Record<string, unknown>
+    let data: Record<string, unknown>
+    if (uploadMode === "presigned") {
+      const presignStart = performance.now()
+      const upload = await createImagePresignedUpload(blob, "capture.jpg")
+      timingsMs.presign = elapsedSince(presignStart)
+
+      const s3UploadStart = performance.now()
+      await uploadToPresignedUrl(upload, blob)
+      timingsMs.s3Upload = elapsedSince(s3UploadStart)
+
+      const analyzeStart = performance.now()
+      data = await analyzePresignedImage(upload.key, "capture.jpg", "female")
+      timingsMs.backendAnalyze = elapsedSince(analyzeStart)
+    } else {
+      const requestStart = performance.now()
+      const formData = new FormData()
+      formData.append("image", blob, "capture.jpg")
+      formData.append("gender", "female")
+
+      const res = await apiFetch("/api/analyses", { method: "POST", body: formData })
+      timingsMs.multipartAnalyze = elapsedSince(requestStart)
+      if (!res.ok) throw new Error(`분석 요청에 실패했습니다. (${res.status})`)
+      data = await res.json() as Record<string, unknown>
+    }
+    timingsMs.totalBeforeSummary = elapsedSince(totalStart)
+    data.uploadBenchmark = {
+      mode: uploadMode,
+      fileBytes: blob.size,
+      timingsMs,
+    }
     const analysisId = (data as Record<string, unknown>).analysisId || (data as Record<string, unknown>).id
     if (typeof analysisId === "string" && analysisId) {
       saveLastAnalysisId(analysisId)

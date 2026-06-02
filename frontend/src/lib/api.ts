@@ -13,6 +13,7 @@ export type AuthResponse = { accessToken: string; refreshToken: string; expiresI
 export type ProfilePayload = Omit<UserProfile, "username">
 export type SavedAnalysis = { analysisId: string; createdAt: string; analysis: unknown }
 export type StoredFile = { key: string; url: string; uploadedAt: string }
+export type PresignedUpload = { key: string; url: string; method: "PUT"; contentType: string; expiresAt: string }
 
 const accessKey = "skinai:access-token"
 const refreshKey = "skinai:refresh-token"
@@ -154,6 +155,39 @@ export async function getStoredFileUrl(key: string) {
   const res = await apiFetch(`/api/files/url?key=${encodeURIComponent(key)}`)
   if (!res.ok) throw new Error(await readErrorReason(res))
   return (await res.json()) as StoredFile
+}
+
+export async function createImagePresignedUpload(file: Blob, filename: string) {
+  const res = await apiFetch("/api/files/images/presigned-upload", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      filename,
+      contentType: file.type || "image/jpeg",
+      contentLength: file.size,
+    }),
+  })
+  if (!res.ok) throw new Error(await readErrorReason(res))
+  return (await res.json()) as PresignedUpload
+}
+
+export async function uploadToPresignedUrl(upload: PresignedUpload, file: Blob) {
+  const res = await fetch(upload.url, {
+    method: upload.method,
+    headers: { "Content-Type": upload.contentType },
+    body: file,
+  })
+  if (!res.ok) throw new Error(`S3 upload failed: ${res.status} ${res.statusText}`)
+}
+
+export async function analyzePresignedImage(imageKey: string, filename: string, gender = "female") {
+  const res = await apiFetch("/api/analyses/from-s3", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ imageKey, filename, gender }),
+  })
+  if (!res.ok) throw new Error(await readErrorReason(res))
+  return (await res.json()) as Record<string, unknown>
 }
 
 export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {

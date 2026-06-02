@@ -4,7 +4,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.security.core.Authentication;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.ohgiraffers.backend.storage.S3StorageService;
 
@@ -144,6 +147,44 @@ public class AiProxyController {
         return response;
     }
 
+    @PostMapping("/api/analyses/from-s3")
+    public Map<String, Object> analyzeImageFromS3(
+            @org.springframework.web.bind.annotation.RequestBody PresignedAnalysisRequest request,
+            Authentication authentication
+    ) {
+        String username = authentication.getName();
+        if (!s3StorageService.isOwnedBy(username, request.imageKey())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "image key is not owned by current user");
+        }
+
+        S3StorageService.DownloadedObject image = s3StorageService.download(request.imageKey());
+        MultipartBodyBuilder bodyBuilder = new MultipartBodyBuilder();
+        bodyBuilder.part("image", new NamedByteArrayResource(image.bytes(), filenameOrDefault(request.filename())))
+                .filename(filenameOrDefault(request.filename()))
+                .contentType(MediaType.parseMediaType(image.contentType()));
+        bodyBuilder.part("gender", request.gender() == null || request.gender().isBlank() ? "female" : request.gender());
+
+        Map<String, Object> response = aiClient.post()
+                .uri("/api/analyze")
+                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .body(BodyInserters.fromMultipartData(bodyBuilder.build()))
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                .block();
+        if (response != null) {
+            AnalysisResultDocument saved = analysisResultService.save(username, response);
+            String imageUrl = s3StorageService.presignedUrl(request.imageKey());
+            String uploadedAt = Instant.now().toString();
+            analysisResultService.saveImageObject(username, saved.getId(), request.imageKey(), imageUrl, uploadedAt);
+            response.putIfAbsent("analysisId", saved.getId());
+            response.putIfAbsent("createdAt", instantString(saved.getCreatedAt()));
+            response.put("imageKey", request.imageKey());
+            response.put("imageUrl", imageUrl);
+            response.put("imageUploadedAt", uploadedAt);
+        }
+        return response;
+    }
+
     @GetMapping("/api/analyses")
     public List<SavedAnalysisResponse> listAnalyses(Authentication authentication) {
         return analysisResultService.list(authentication.getName()).stream()
@@ -170,6 +211,8 @@ public class AiProxyController {
 
     public record ConsultationMessageResponse(String id, String role, String content, String createdAt) {}
 
+    public record PresignedAnalysisRequest(String imageKey, String gender, String filename) {}
+
     public record AnalysisSummaryRequest(Map<String, Object> analysis, String gender, String sessionId, String analysisId) {}
 
     @PostMapping("/api/analyses/summary")
@@ -193,5 +236,23 @@ public class AiProxyController {
             }
         }
         return response;
+    }
+
+    private String filenameOrDefault(String filename) {
+        return filename == null || filename.isBlank() ? "capture.jpg" : filename;
+    }
+
+    private static class NamedByteArrayResource extends ByteArrayResource {
+        private final String filename;
+
+        NamedByteArrayResource(byte[] byteArray, String filename) {
+            super(byteArray);
+            this.filename = filename;
+        }
+
+        @Override
+        public String getFilename() {
+            return filename;
+        }
     }
 }

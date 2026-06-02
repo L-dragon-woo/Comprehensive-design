@@ -7,8 +7,11 @@ data:
   AI_SERVICE_URL: http://ai:8000
   SPRING_DATA_REDIS_HOST: redis
   SPRING_DATA_REDIS_PORT: "6379"
-  SPRING_DATASOURCE_URL: jdbc:mariadb://mariadb:3306/skinai_auth
+  SPRING_DATASOURCE_URL: jdbc:mariadb://skinai-mariadb.cboye4w2ge2s.ap-northeast-2.rds.amazonaws.com:3306/skinai_auth?sslMode=trust
   SPRING_DATASOURCE_USERNAME: skinai
+  SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "3"
+  SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "1"
+  SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT: "30000"
   SPRING_JPA_HIBERNATE_DDL_AUTO: update
   VITE_API_PROXY_TARGET: http://backend:8080
   JWT_ISSUER: skinai

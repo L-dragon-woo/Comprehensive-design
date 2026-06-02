@@ -4,7 +4,7 @@ metadata:
   name: backend
   namespace: skinai
 spec:
-  replicas: 2
+  replicas: 1
   minReadySeconds: 10
   strategy:
     type: RollingUpdate

@@ -7,6 +7,8 @@ const apiProxy = {
   "/api": {
     target: process.env.VITE_API_PROXY_TARGET || "http://localhost:8080",
     changeOrigin: true,
+    timeout: 180_000,
+    proxyTimeout: 180_000,
   },
 }
 

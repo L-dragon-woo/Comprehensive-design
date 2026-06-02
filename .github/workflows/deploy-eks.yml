@@ -1,0 +1,130 @@
+name: Deploy to EKS
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    branches:
+      - dev
+    types:
+      - completed
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-eks
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ap-northeast-2
+  KUSTOMIZE_DIR: k8s/overlays/eks
+  ECR_FRONTEND_REPOSITORY: skinai-frontend
+  ECR_BACKEND_REPOSITORY: skinai-backend
+  ECR_AI_REPOSITORY: skinai-ai
+
+jobs:
+  deploy:
+    name: Build, Push, and Rollout
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set deployment metadata
+        id: meta
+        shell: bash
+        run: |
+          sha="${{ github.event.workflow_run.head_sha || github.sha }}"
+          tag="${sha:0:12}"
+          registry="${{ steps.ecr.outputs.registry }}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "frontend=${registry}/${ECR_FRONTEND_REPOSITORY}" >> "$GITHUB_OUTPUT"
+          echo "backend=${registry}/${ECR_BACKEND_REPOSITORY}" >> "$GITHUB_OUTPUT"
+          echo "ai=${registry}/${ECR_AI_REPOSITORY}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.frontend }}:${{ steps.meta.outputs.tag }}
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.backend }}:${{ steps.meta.outputs.tag }}
+
+      - name: Build and push AI
+        uses: docker/build-push-action@v6
+        with:
+          context: ./AI
+          file: ./AI/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.ai }}:${{ steps.meta.outputs.tag }}
+
+      - name: Configure kubeconfig
+        run: aws eks update-kubeconfig --region "$AWS_REGION" --name "${{ secrets.EKS_CLUSTER_NAME }}"
+
+      - name: Upsert runtime secret
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          AUTH_ADMIN_USERNAME: ${{ secrets.AUTH_ADMIN_USERNAME }}
+          AUTH_ADMIN_PASSWORD: ${{ secrets.AUTH_ADMIN_PASSWORD }}
+          SPRING_DATASOURCE_PASSWORD: ${{ secrets.SPRING_DATASOURCE_PASSWORD }}
+          MARIADB_ROOT_PASSWORD: ${{ secrets.MARIADB_ROOT_PASSWORD }}
+          MARIADB_PASSWORD: ${{ secrets.MARIADB_PASSWORD }}
+          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+          SPRING_DATA_MONGODB_URI: ${{ secrets.SPRING_DATA_MONGODB_URI }}
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+          kubectl create secret generic skinai-secret \
+            --namespace skinai \
+            --from-literal=JWT_SECRET="$JWT_SECRET" \
+            --from-literal=AUTH_ADMIN_USERNAME="$AUTH_ADMIN_USERNAME" \
+            --from-literal=AUTH_ADMIN_PASSWORD="$AUTH_ADMIN_PASSWORD" \
+            --from-literal=SPRING_DATASOURCE_PASSWORD="$SPRING_DATASOURCE_PASSWORD" \
+            --from-literal=MARIADB_ROOT_PASSWORD="$MARIADB_ROOT_PASSWORD" \
+            --from-literal=MARIADB_PASSWORD="$MARIADB_PASSWORD" \
+            --from-literal=KAKAO_REST_API_KEY="$KAKAO_REST_API_KEY" \
+            --from-literal=SPRING_DATA_MONGODB_URI="$SPRING_DATA_MONGODB_URI" \
+            --from-literal=SPRING_MONGODB_URI="$SPRING_DATA_MONGODB_URI" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Render manifests with immutable image tags
+        run: |
+          kubectl kustomize "$KUSTOMIZE_DIR" --load-restrictor=LoadRestrictionsNone > /tmp/skinai.yaml
+          sed -i "s#000000000000.dkr.ecr.ap-northeast-2.amazonaws.com/skinai-frontend:latest#${{ steps.meta.outputs.frontend }}:${{ steps.meta.outputs.tag }}#g" /tmp/skinai.yaml
+          sed -i "s#000000000000.dkr.ecr.ap-northeast-2.amazonaws.com/skinai-backend:latest#${{ steps.meta.outputs.backend }}:${{ steps.meta.outputs.tag }}#g" /tmp/skinai.yaml
+          sed -i "s#000000000000.dkr.ecr.ap-northeast-2.amazonaws.com/skinai-ai:latest#${{ steps.meta.outputs.ai }}:${{ steps.meta.outputs.tag }}#g" /tmp/skinai.yaml
+
+      - name: Apply manifests
+        run: kubectl apply -f /tmp/skinai.yaml
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deploy/ai -n skinai --timeout=10m
+          kubectl rollout status deploy/backend -n skinai --timeout=10m
+          kubectl rollout status deploy/frontend -n skinai --timeout=10m

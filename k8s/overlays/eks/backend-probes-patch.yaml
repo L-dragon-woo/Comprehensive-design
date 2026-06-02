@@ -1,0 +1,18 @@
+- op: replace
+  path: /spec/template/spec/containers/0/readinessProbe
+  value:
+    httpGet:
+      path: /actuator/health/readiness
+      port: 8080
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    failureThreshold: 6
+- op: replace
+  path: /spec/template/spec/containers/0/livenessProbe
+  value:
+    httpGet:
+      path: /actuator/health/liveness
+      port: 8080
+    initialDelaySeconds: 60
+    periodSeconds: 20
+    failureThreshold: 3

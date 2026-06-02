@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - ../../namespace.yaml
+  - storage-class.yaml
   - configmap.yaml
   - ../../redis.yaml
   - ../../mariadb.yaml
@@ -23,6 +24,27 @@ patches:
       name: backend
     path: backend-probes-patch.yaml
   - path: ai-deployment-patch.yaml
+  - target:
+      kind: PersistentVolumeClaim
+      name: ai-uploads
+    patch: |-
+      - op: add
+        path: /spec/storageClassName
+        value: auto-ebs-sc
+  - target:
+      kind: PersistentVolumeClaim
+      name: mariadb-data
+    patch: |-
+      - op: add
+        path: /spec/storageClassName
+        value: auto-ebs-sc
+  - target:
+      kind: PersistentVolumeClaim
+      name: redis-data
+    patch: |-
+      - op: add
+        path: /spec/storageClassName
+        value: auto-ebs-sc
 
 images:
   - name: comprehensive-design-frontend

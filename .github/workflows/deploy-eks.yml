@@ -111,6 +111,8 @@ jobs:
           LANGCHAIN_TRACING_V2: ${{ secrets.LANGCHAIN_TRACING_V2 }}
           LANGCHAIN_PROJECT: ${{ secrets.LANGCHAIN_PROJECT }}
           LANGCHAIN_ENDPOINT: ${{ secrets.LANGCHAIN_ENDPOINT }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          S3_PRESIGNED_URL_TTL: ${{ secrets.S3_PRESIGNED_URL_TTL }}
         run: |
           kubectl apply -f k8s/namespace.yaml
           kubectl create secret generic skinai-secret \
@@ -144,6 +146,9 @@ jobs:
             --from-literal=LANGCHAIN_TRACING_V2="$LANGCHAIN_TRACING_V2" \
             --from-literal=LANGCHAIN_PROJECT="$LANGCHAIN_PROJECT" \
             --from-literal=LANGCHAIN_ENDPOINT="$LANGCHAIN_ENDPOINT" \
+            --from-literal=AWS_REGION="$AWS_REGION" \
+            --from-literal=S3_BUCKET="$S3_BUCKET" \
+            --from-literal=S3_PRESIGNED_URL_TTL="${S3_PRESIGNED_URL_TTL:-PT1H}" \
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Render manifests with immutable image tags

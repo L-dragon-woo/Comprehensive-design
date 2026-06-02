@@ -8,14 +8,18 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record S3StorageProperties(
         String bucket,
         String region,
-        Duration presignedUrlTtl
+        String presignedUrlTtl
 ) {
     public S3StorageProperties {
         if (region == null || region.isBlank()) region = "ap-northeast-2";
-        if (presignedUrlTtl == null) presignedUrlTtl = Duration.ofHours(1);
+        if (presignedUrlTtl == null || presignedUrlTtl.isBlank()) presignedUrlTtl = "PT1H";
     }
 
     public boolean enabled() {
         return bucket != null && !bucket.isBlank();
+    }
+
+    public Duration presignedUrlDuration() {
+        return Duration.parse(presignedUrlTtl.trim());
     }
 }

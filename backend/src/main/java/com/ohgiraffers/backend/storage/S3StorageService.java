@@ -56,11 +56,11 @@ public class S3StorageService {
                 .contentType(normalizedContentType)
                 .build();
         PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
-                .signatureDuration(properties.presignedUrlTtl())
+                .signatureDuration(properties.presignedUrlDuration())
                 .putObjectRequest(request)
                 .build();
         URL url = presigner.presignPutObject(presignRequest).url();
-        Instant expiresAt = Instant.now().plus(properties.presignedUrlTtl()).truncatedTo(ChronoUnit.SECONDS);
+        Instant expiresAt = Instant.now().plus(properties.presignedUrlDuration()).truncatedTo(ChronoUnit.SECONDS);
         return new PresignedUpload(key, url.toString(), "PUT", normalizedContentType, expiresAt.toString());
     }
 
@@ -100,7 +100,7 @@ public class S3StorageService {
                 .key(key)
                 .build();
         GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
-                .signatureDuration(properties.presignedUrlTtl())
+                .signatureDuration(properties.presignedUrlDuration())
                 .getObjectRequest(getObjectRequest)
                 .build();
         URL url = presigner.presignGetObject(presignRequest).url();

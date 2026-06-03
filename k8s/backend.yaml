@@ -26,6 +26,13 @@ spec:
                 name: skinai-config
             - secretRef:
                 name: skinai-secret
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
           readinessProbe:
             tcpSocket:
               port: 8080

@@ -10,6 +10,7 @@ resources:
   - ai.yaml
   - backend.yaml
   - frontend.yaml
+  - hpa.yaml
   - monitoring.yaml
 
 generatorOptions:

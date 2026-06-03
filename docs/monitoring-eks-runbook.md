@@ -113,6 +113,64 @@ kubectl get pods -n skinai
 
 Then correlate timestamps with CloudWatch metrics for RDS, ElastiCache, EKS node status, and load balancer target health.
 
+## CloudWatch Alarm Setup
+
+Run this from AWS CloudShell or another shell where both AWS CLI and the EKS `kubectl` context are configured:
+
+```bash
+export AWS_REGION=ap-northeast-2
+export CLUSTER_NAME=skinai-cluster
+export NAMESPACE=skinai
+
+bash scripts/cloudwatch/setup-skinai-alarms.sh
+```
+
+By default, the script does not create SNS notification actions. It configures CloudWatch alarms for dashboard and manual incident checks:
+
+- ALB target 5xx errors
+- ALB unhealthy targets
+- RDS CPU
+- RDS connection count
+- RDS free storage
+- EKS node CPU, when Container Insights metrics already exist
+- ElastiCache CPU and memory, when `ELASTICACHE_CLUSTER_ID` is provided
+
+If auto-discovery does not find a resource, set the value explicitly:
+
+```bash
+export RDS_INSTANCE_ID=skinai-rds
+export LOAD_BALANCER_FULL_NAME=app/example/1234567890abcdef
+export TARGET_GROUP_FULL_NAME=targetgroup/example/1234567890abcdef
+export ELASTICACHE_CLUSTER_ID=skinai-redis
+```
+
+Verify after running:
+
+```bash
+aws cloudwatch describe-alarms --region ap-northeast-2 --alarm-name-prefix skinai-
+```
+
+To enable SNS later, opt in explicitly:
+
+```bash
+export ENABLE_SNS_ALARMS=true
+export SNS_EMAIL=you@example.com
+bash scripts/cloudwatch/setup-skinai-alarms.sh
+```
+
+### Optional EKS Container Insights
+
+For EKS node, pod, and container metrics/logs in CloudWatch, enable the AWS-managed CloudWatch Observability add-on:
+
+```bash
+aws eks create-addon \
+  --region ap-northeast-2 \
+  --cluster-name skinai-cluster \
+  --addon-name amazon-cloudwatch-observability
+```
+
+The add-on requires CloudWatch permissions through worker-node IAM, Pod Identity, or IRSA. Reference: <https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/install-CloudWatch-Observability-EKS-addon.html>
+
 ## Smoke Test
 
 Run one image analysis request from the browser. Confirm:

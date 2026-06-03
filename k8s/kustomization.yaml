@@ -31,6 +31,7 @@ configMapGenerator:
   - name: grafana-dashboards
     namespace: skinai
     files:
+      - overview.json=monitoring/dashboards/overview.json
       - system.json=monitoring/dashboards/system.json
       - backend.json=monitoring/dashboards/backend.json
       - ai.json=monitoring/dashboards/ai.json

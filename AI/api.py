@@ -473,6 +473,17 @@ def _strip_qna_section(content: str) -> str:
     return "\n".join(kept).strip()
 
 
+def _is_insufficient_report(content: str) -> bool:
+    """Detect agent follow-up prompts that should not be saved as a report."""
+    normalized = content.strip()
+    return (
+        "최종 레포트를 작성하려면" in normalized
+        or "지금까지 완료된 단계" in normalized
+        or "어떤 부분부터 진행하시겠어요" in normalized
+        or "사진을 업로드해 주시거나" in normalized
+    )
+
+
 def _mock_analysis(gender: str) -> dict[str, Any]:
     return {
         "gender": gender,
@@ -585,9 +596,12 @@ def analyses_summary(request: AnalysisSummaryRequest) -> dict[str, Any]:
         final_text = session.final_answer
         if not final_text or not final_text.strip():
             final_text = _llm_chat_with_analysis("피부 분석 결과를 한국어로 요약해줘.", pipeline_result)
+        final_text = _strip_qna_section(final_text).strip()
+        if _is_insufficient_report(final_text):
+            final_text = _deterministic_report(pipeline_result, gender)
 
         return {
-            "content": _strip_qna_section(final_text).strip(),
+            "content": final_text,
             "sessionId": session_id,
             "mode": "agent_pubmed" if session.pubmed_recommendations else "agent",
         }

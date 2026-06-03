@@ -49,7 +49,12 @@ let notesSaveTimer: ReturnType<typeof setTimeout> | null = null
 
 function isGenericFallbackSummary(content?: string) {
   if (!content) return false
-  return content.includes("예상 피부 나이") && content.includes("궁금한 항목을") && content.includes("구체적으로 물어보면")
+  return (
+    (content.includes("예상 피부 나이") && content.includes("궁금한 항목을") && content.includes("구체적으로 물어보면")) ||
+    content.includes("최종 레포트를 작성하려면") ||
+    content.includes("지금까지 완료된 단계") ||
+    content.includes("어떤 부분부터 진행하시겠어요")
+  )
 }
 
 function loadNotes() {

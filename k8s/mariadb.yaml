@@ -50,16 +50,27 @@ spec:
           volumeMounts:
             - name: mariadb-data
               mountPath: /var/lib/mysql
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 768Mi
           readinessProbe:
             exec:
               command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
             initialDelaySeconds: 20
             periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 6
           livenessProbe:
             exec:
               command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
             initialDelaySeconds: 60
             periodSeconds: 20
+            timeoutSeconds: 10
+            failureThreshold: 6
       volumes:
         - name: mariadb-data
           persistentVolumeClaim:

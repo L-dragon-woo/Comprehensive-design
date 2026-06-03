@@ -6,6 +6,7 @@
       port: 8081
     initialDelaySeconds: 20
     periodSeconds: 10
+    timeoutSeconds: 10
     failureThreshold: 6
 - op: replace
   path: /spec/template/spec/containers/0/livenessProbe
@@ -15,4 +16,5 @@
       port: 8081
     initialDelaySeconds: 60
     periodSeconds: 20
+    timeoutSeconds: 10
     failureThreshold: 3

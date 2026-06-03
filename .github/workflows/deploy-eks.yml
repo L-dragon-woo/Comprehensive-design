@@ -61,6 +61,8 @@ jobs:
           file: ./frontend/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.frontend }}:${{ steps.meta.outputs.tag }}
+          build-args: |
+            VITE_KAKAO_MAP_APP_KEY=${{ secrets.VITE_KAKAO_MAP_APP_KEY }}
 
       - name: Build and push backend
         uses: docker/build-push-action@v6

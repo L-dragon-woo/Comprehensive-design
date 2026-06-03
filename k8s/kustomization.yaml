@@ -10,3 +10,27 @@ resources:
   - ai.yaml
   - backend.yaml
   - frontend.yaml
+  - monitoring.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: prometheus-config
+    namespace: skinai
+    files:
+      - prometheus.yml=monitoring/prometheus.yml
+  - name: grafana-datasource-config
+    namespace: skinai
+    files:
+      - prometheus.yml=monitoring/grafana-datasource.yml
+  - name: grafana-dashboard-provider
+    namespace: skinai
+    files:
+      - skinai.yml=monitoring/grafana-dashboard-provider.yml
+  - name: grafana-dashboards
+    namespace: skinai
+    files:
+      - system.json=monitoring/dashboards/system.json
+      - backend.json=monitoring/dashboards/backend.json
+      - ai.json=monitoring/dashboards/ai.json

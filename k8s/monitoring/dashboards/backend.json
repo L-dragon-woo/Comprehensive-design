@@ -1,0 +1,50 @@
+{
+  "uid": "skinai-backend",
+  "title": "Dashboard 2: Backend",
+  "tags": ["skinai", "backend"],
+  "timezone": "browser",
+  "schemaVersion": 40,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "API Count",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 0 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (method, uri, status) (rate(http_server_requests_seconds_count{job=\"backend\",uri!~\"/actuator.*\"}[5m]))", "legendFormat": "{{method}} {{uri}} {{status}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "none" } }
+    },
+    {
+      "id": 2,
+      "title": "API Latency",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 9 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (method, uri) (rate(http_server_requests_seconds_sum{job=\"backend\",uri!~\"/actuator.*\"}[5m])) / sum by (method, uri) (rate(http_server_requests_seconds_count{job=\"backend\",uri!~\"/actuator.*\"}[5m]))", "legendFormat": "{{method}} {{uri}} avg" },
+        { "refId": "B", "expr": "max by (method, uri) (http_server_requests_seconds_max{job=\"backend\",uri!~\"/actuator.*\"})", "legendFormat": "{{method}} {{uri}} max" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "none" } }
+    },
+    {
+      "id": 3,
+      "title": "Error Rate",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 9 },
+      "targets": [
+        { "refId": "A", "expr": "(sum(rate(http_server_requests_seconds_count{job=\"backend\",status=~\"5..\",uri!~\"/actuator.*\"}[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count{job=\"backend\",uri!~\"/actuator.*\"}[5m])), 1)) or vector(0)", "legendFormat": "5xx / total" },
+        { "refId": "B", "expr": "(sum(rate(http_server_requests_seconds_count{job=\"backend\",status=~\"4..\",uri!~\"/actuator.*\"}[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count{job=\"backend\",uri!~\"/actuator.*\"}[5m])), 1)) or vector(0)", "legendFormat": "4xx / total" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "none" } }
+    }
+  ]
+}

@@ -3,7 +3,7 @@
   value:
     httpGet:
       path: /actuator/health/readiness
-      port: 8080
+      port: 8081
     initialDelaySeconds: 20
     periodSeconds: 10
     failureThreshold: 6
@@ -12,7 +12,7 @@
   value:
     httpGet:
       path: /actuator/health/liveness
-      port: 8080
+      port: 8081
     initialDelaySeconds: 60
     periodSeconds: 20
     failureThreshold: 3

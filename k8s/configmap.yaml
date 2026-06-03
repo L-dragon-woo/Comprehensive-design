@@ -12,6 +12,7 @@ data:
   SPRING_JPA_HIBERNATE_DDL_AUTO: update
   SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/skinai
   SPRING_MONGODB_URI: mongodb://mongo:27017/skinai
+  MANAGEMENT_SERVER_PORT: "8081"
   VITE_API_PROXY_TARGET: http://backend:8080
   JWT_ISSUER: skinai
   JWT_ACCESS_TTL_SECONDS: "1800"

@@ -3,7 +3,7 @@ import { Camera, RotateCcw, SwitchCamera, UserCheck, UserX, X } from "lucide-vue
 import { onBeforeUnmount, onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
 import BaseButton from "@/components/BaseButton.vue"
-import { analyzePresignedImage, apiFetch, createImagePresignedUpload, uploadToPresignedUrl } from "@/lib/api"
+import { analyzePresignedImage, apiFetch, createImagePresignedUpload, readErrorReason, uploadToPresignedUrl } from "@/lib/api"
 import { saveAnalysisImage, saveLastAnalysis, saveLastAnalysisId } from "@/lib/skinai"
 
 declare global {
@@ -221,6 +221,25 @@ function elapsedSince(start: number) {
   return Math.round(performance.now() - start)
 }
 
+async function analyzeMultipartImage(blob: Blob, timingsMs: Record<string, number>) {
+  const requestStart = performance.now()
+  const formData = new FormData()
+  formData.append("image", blob, "capture.jpg")
+  formData.append("gender", "female")
+
+  const res = await apiFetch("/api/analyses", { method: "POST", body: formData })
+  timingsMs.multipartAnalyze = elapsedSince(requestStart)
+  if (!res.ok) throw new Error(await readErrorReason(res))
+  return await res.json() as Record<string, unknown>
+}
+
+function hasPresignedUploadUrl(upload: unknown): upload is { key: string; url: string; method: "PUT"; contentType: string; expiresAt: string } {
+  if (!upload || typeof upload !== "object") return false
+  const candidate = upload as Record<string, unknown>
+  return typeof candidate.key === "string" && candidate.key.length > 0
+    && typeof candidate.url === "string" && candidate.url.length > 0
+}
+
 async function analyze() {
   if (!capturedImage.value) return
   const imageDataUrl = capturedImage.value
@@ -234,17 +253,26 @@ async function analyze() {
 
     let data: Record<string, unknown>
     if (uploadMode === "presigned") {
-      const presignStart = performance.now()
-      const upload = await createImagePresignedUpload(blob, "capture.jpg")
-      timingsMs.presign = elapsedSince(presignStart)
+      try {
+        const presignStart = performance.now()
+        const upload = await createImagePresignedUpload(blob, "capture.jpg")
+        timingsMs.presign = elapsedSince(presignStart)
 
-      const s3UploadStart = performance.now()
-      await uploadToPresignedUrl(upload, blob)
-      timingsMs.s3Upload = elapsedSince(s3UploadStart)
+        if (!hasPresignedUploadUrl(upload)) {
+          throw new Error("presigned upload URL is missing")
+        }
 
-      const analyzeStart = performance.now()
-      data = await analyzePresignedImage(upload.key, "capture.jpg", "female")
-      timingsMs.backendAnalyze = elapsedSince(analyzeStart)
+        const s3UploadStart = performance.now()
+        await uploadToPresignedUrl(upload, blob)
+        timingsMs.s3Upload = elapsedSince(s3UploadStart)
+
+        const analyzeStart = performance.now()
+        data = await analyzePresignedImage(upload.key, "capture.jpg", "female")
+        timingsMs.backendAnalyze = elapsedSince(analyzeStart)
+      } catch {
+        timingsMs.presignedFallback = elapsedSince(totalStart)
+        data = await analyzeMultipartImage(blob, timingsMs)
+      }
     } else {
       const requestStart = performance.now()
       const formData = new FormData()

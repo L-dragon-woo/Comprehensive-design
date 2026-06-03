@@ -7,6 +7,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
@@ -32,6 +34,31 @@ public class ApiExceptionHandler {
                 .body(Map.of(
                         "status", HttpStatus.SERVICE_UNAVAILABLE.value(),
                         "message", "database is unavailable"
+                ));
+    }
+
+    @ExceptionHandler(WebClientRequestException.class)
+    public ResponseEntity<Map<String, Object>> handleWebClientRequestException() {
+        return ResponseEntity
+                .status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(Map.of(
+                        "status", HttpStatus.SERVICE_UNAVAILABLE.value(),
+                        "message", "AI service is unavailable"
+                ));
+    }
+
+    @ExceptionHandler(WebClientResponseException.class)
+    public ResponseEntity<Map<String, Object>> handleWebClientResponseException(WebClientResponseException e) {
+        String responseBody = e.getResponseBodyAsString();
+        String message = responseBody == null || responseBody.isBlank()
+                ? "AI service request failed"
+                : responseBody;
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_GATEWAY)
+                .body(Map.of(
+                        "status", HttpStatus.BAD_GATEWAY.value(),
+                        "message", message
                 ));
     }
 }

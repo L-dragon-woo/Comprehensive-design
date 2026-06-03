@@ -3,6 +3,7 @@ package com.ohgiraffers.backend.ai;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.ParameterizedTypeReference;
@@ -134,14 +135,20 @@ public class AiProxyController {
                 .block();
         if (response != null) {
             String username = authentication.getName();
-            AnalysisResultDocument saved = analysisResultService.save(username, response);
-            response.putIfAbsent("analysisId", saved.getId());
-            response.putIfAbsent("createdAt", instantString(saved.getCreatedAt()));
-            if (s3StorageService.enabled()) {
-                S3StorageService.StoredObject imageObject = s3StorageService.uploadAnalysisImage(username, saved.getId(), image);
-                analysisResultService.saveImageObject(username, saved.getId(), imageObject.key(), imageObject.url(), imageObject.uploadedAt());
-                response.put("imageKey", imageObject.key());
-                response.put("imageUrl", imageObject.url());
+            AnalysisResultDocument saved = trySaveAnalysis(username, response);
+            String analysisId = saved == null ? "local-" + UUID.randomUUID() : saved.getId();
+            response.putIfAbsent("analysisId", analysisId);
+            response.putIfAbsent("createdAt", saved == null ? Instant.now().toString() : instantString(saved.getCreatedAt()));
+            response.putIfAbsent("persisted", saved != null);
+            if (saved != null && s3StorageService.enabled()) {
+                try {
+                    S3StorageService.StoredObject imageObject = s3StorageService.uploadAnalysisImage(username, saved.getId(), image);
+                    analysisResultService.saveImageObject(username, saved.getId(), imageObject.key(), imageObject.url(), imageObject.uploadedAt());
+                    response.put("imageKey", imageObject.key());
+                    response.put("imageUrl", imageObject.url());
+                } catch (RuntimeException ignored) {
+                    response.put("imageUploadStatus", "failed");
+                }
             }
         }
         return response;
@@ -240,6 +247,15 @@ public class AiProxyController {
 
     private String filenameOrDefault(String filename) {
         return filename == null || filename.isBlank() ? "capture.jpg" : filename;
+    }
+
+    private AnalysisResultDocument trySaveAnalysis(String username, Map<String, Object> response) {
+        try {
+            return analysisResultService.save(username, response);
+        } catch (RuntimeException ignored) {
+            response.put("persistenceStatus", "failed");
+            return null;
+        }
     }
 
     private static class NamedByteArrayResource extends ByteArrayResource {

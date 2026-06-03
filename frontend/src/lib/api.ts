@@ -50,7 +50,7 @@ export function clearAuth() {
   window.dispatchEvent(new CustomEvent("skinai:auth-updated"))
 }
 
-async function readErrorReason(res: Response) {
+export async function readErrorReason(res: Response) {
   const fallback = `${res.status} ${res.statusText || "request failed"}`
   const contentType = res.headers.get("content-type") || ""
 

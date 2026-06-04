@@ -548,8 +548,8 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": "ai"}
 
 
-@app.get("/ready")
-def ready() -> Response | dict[str, str]:
+@app.get("/ready", response_model=None)
+def ready() -> Any:
     if not _PIPELINE_READY:
         payload = {"status": "starting", "service": "ai"}
         if _PIPELINE_PRELOAD_ERROR:

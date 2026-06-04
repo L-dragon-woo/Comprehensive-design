@@ -281,6 +281,98 @@ def _average_scores(values: list[Any]) -> float | None:
     return round(sum(nums) / len(nums), 1) if nums else None
 
 
+def _pubmed_evidence_lines(analysis: dict[str, Any]) -> list[str]:
+    try:
+        from tools.search_pubmed import REGION_TO_PUBMED_QUERY, _evidence_grade, _retrieve_for_region
+        from tools.skin_analyze import _flatten, aggregate_regions
+    except Exception as exc:
+        print(f"[summary] pubmed fallback import failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return []
+
+    try:
+        flat_scores = _flatten(analysis)
+        targets = [
+            region for region in aggregate_regions(flat_scores)[:3]
+            if region.get("region") and REGION_TO_PUBMED_QUERY.get(region["region"])
+        ]
+    except Exception as exc:
+        print(f"[summary] pubmed fallback target build failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return []
+
+    lines: list[str] = []
+    treatment_terms = {
+        "pigmentation": "laser picosecond IPL topical depigmenting",
+        "forehead_wrinkle": "botulinum toxin skin booster",
+        "eye_wrinkle": "botulinum toxin fractional laser skin booster",
+        "nasolabial_fold": "hyaluronic acid filler",
+        "perioral_wrinkle": "botulinum toxin filler laser",
+        "volume_wrinkle": "dermal filler hyaluronic acid",
+        "homogenity_radiance": "skin booster hyaluronic acid",
+        "homogenity_texture": "skin resurfacing laser skin booster",
+        "cheek_sagging": "HIFU radiofrequency lifting",
+        "chin_sagging": "HIFU radiofrequency jawline lifting",
+    }
+
+    for target in targets:
+        region = str(target["region"])
+        spec = {
+            "core": REGION_TO_PUBMED_QUERY[region],
+            "treatment_terms": treatment_terms.get(region, ""),
+            "mesh": [],
+        }
+        try:
+            _, articles, _ = _retrieve_for_region(spec)
+        except Exception as exc:
+            print(f"[summary] pubmed fallback retrieval failed for {region}: {type(exc).__name__}: {exc}", file=sys.stderr)
+            continue
+        if not articles:
+            continue
+
+        article = sorted(
+            articles,
+            key=lambda item: (
+                {"A": 0, "B": 1, "C": 2}.get(_evidence_grade(item.get("study_type")), 3),
+                -(item.get("year") or 0),
+            ),
+        )[0]
+        title = str(article.get("title") or "제목 정보 없음").strip()
+        authors = str(article.get("authors") or "저자 정보 없음").strip()
+        year = article.get("year") or "연도 정보 없음"
+        pmid = article.get("pmid") or "PMID 정보 없음"
+        grade = _evidence_grade(article.get("study_type"))
+        study_type = article.get("study_type") or "PubMed indexed article"
+        lines.append(
+            f"- **{target.get('region_ko')} 근거**: {title} "
+            f"({authors}, {year}, {study_type}, 근거등급 {grade}, PMID {pmid})"
+        )
+    return lines
+
+
+def _step3_pubmed_section(analysis: dict[str, Any]) -> str:
+    evidence_lines = _pubmed_evidence_lines(analysis)
+    if evidence_lines:
+        return "\n".join([
+            "[Step 3] 학술 근거",
+            *evidence_lines,
+            "위 근거는 PubMed 검색 결과를 바탕으로 자동 선별한 참고 자료이며, 실제 시술 결정은 전문의 상담으로 확정해야 합니다.",
+        ])
+    return "\n".join([
+        "[Step 3] 학술 근거",
+        "현재 PubMed에서 직접 매칭 가능한 논문 근거를 확보하지 못했습니다.",
+        "이 리포트는 저장된 AI 분석 점수와 내부 시술 규칙을 기준으로 만든 임시 종합 분석이며, 실제 시술 결정은 피부과 전문의 상담으로 확정해야 합니다.",
+    ])
+
+
+def _ensure_pubmed_step3(content: str, analysis: dict[str, Any]) -> str:
+    if "PMID" in content and "호출 한도" not in content:
+        return content
+    section = _step3_pubmed_section(analysis)
+    pattern = r"(?s)\[Step 3\]\s*[^\n]*.*$"
+    if re.search(pattern, content):
+        return re.sub(pattern, section, content).strip()
+    return f"{content.rstrip()}\n\n{section}"
+
+
 def _deterministic_report(analysis: dict[str, Any], gender: str) -> str:
     """Return a card-friendly report when the LLM agent cannot finish."""
     if analysis.get("status") == "rejected":
@@ -346,12 +438,7 @@ def _deterministic_report(analysis: dict[str, Any], gender: str) -> str:
         lines.append(f"- **{label} ({score_text})**")
         lines.append(f"  {treatment_map.get(label, '전문의 상담으로 관리 우선순위를 정하는 것이 좋습니다.')}")
 
-    lines.extend([
-        "",
-        "[Step 3] 학술 근거",
-        "현재 OpenAI 호출 한도 문제로 beauty-agent의 PubMed 근거 생성까지 완료하지 못했습니다.",
-        "따라서 이 리포트는 저장된 AI 분석 점수와 내부 시술 규칙을 기준으로 만든 임시 종합 분석이며, 실제 시술 결정은 피부과 전문의 상담으로 확정해야 합니다.",
-    ])
+    lines.extend(["", _step3_pubmed_section(analysis)])
     return "\n".join(lines).strip()
 
 
@@ -601,7 +688,7 @@ def analyses_summary(request: AnalysisSummaryRequest) -> dict[str, Any]:
 
     openai_key = (os.getenv("OPENAI_API_KEY") or "").strip()
     if not openai_key or openai_key in {"sk-...", "sk-"}:
-        return {"content": _deterministic_report(pipeline_result, gender), "sessionId": session_id, "mode": "deterministic_report"}
+        return {"content": _deterministic_report(pipeline_result, gender), "sessionId": session_id, "mode": "deterministic_pubmed_report"}
 
     try:
         from tools.skin_analyze import _flatten, aggregate_regions
@@ -652,20 +739,22 @@ def analyses_summary(request: AnalysisSummaryRequest) -> dict[str, Any]:
         final_text = _strip_qna_section(final_text).strip()
         if _is_insufficient_report(final_text):
             final_text = _deterministic_report(pipeline_result, gender)
+        elif not session.pubmed_recommendations:
+            final_text = _ensure_pubmed_step3(final_text, pipeline_result)
 
         return {
             "content": final_text,
             "sessionId": session_id,
-            "mode": "agent_pubmed" if session.pubmed_recommendations else "agent",
+            "mode": "agent_pubmed" if session.pubmed_recommendations else "agent_pubmed_fallback",
         }
 
     except Exception as exc:
         print(f"[summary] agent failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         try:
             content = _llm_chat_with_analysis("피부 분석 결과를 한국어로 요약해줘.", pipeline_result)
-            return {"content": content, "sessionId": session_id, "mode": "llm_fallback"}
+            return {"content": _ensure_pubmed_step3(content, pipeline_result), "sessionId": session_id, "mode": "llm_pubmed_fallback"}
         except Exception:
-            return {"content": _deterministic_report(pipeline_result, gender), "sessionId": session_id, "mode": "deterministic_report"}
+            return {"content": _deterministic_report(pipeline_result, gender), "sessionId": session_id, "mode": "deterministic_pubmed_report"}
 
 
 _ALLOWED_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}

@@ -9,7 +9,7 @@ import ChatBubble from "@/components/ChatBubble.vue"
 import ChatTypingIndicator from "@/components/ChatTypingIndicator.vue"
 import PageContainer from "@/components/PageContainer.vue"
 import { apiFetch, getMyAnalysis } from "@/lib/api"
-import { getAnalysisImage, getLastAnalysis, getLastAnalysisId, normalizeAnalysisResponse, type AnalysisResult, type ChatMessage } from "@/lib/skinai"
+import { extractTreatmentsFromAiSummary, getAnalysisImage, getLastAnalysis, getLastAnalysisId, normalizeAnalysisResponse, type AnalysisResult, type ChatMessage } from "@/lib/skinai"
 
 const analysisId = getLastAnalysisId()
 const analysis = ref<AnalysisResult | null>(null)
@@ -35,6 +35,13 @@ const showSuggestions = ref(true)
 const messagesEnd = ref<HTMLElement | null>(null)
 const sessionId = ref<string | null>(null)
 const hasUserConsultation = computed(() => messages.value.some((message) => message.role === "user"))
+
+function applyAiSummaryToAnalysis(content?: string) {
+  if (!analysis.value || !content?.trim()) return
+  analysis.value.aiSummary = content
+  const treatments = extractTreatmentsFromAiSummary(content)
+  if (treatments.length) analysis.value.treatments = treatments
+}
 
 async function scrollToBottom() {
   await nextTick()
@@ -134,18 +141,24 @@ async function loadAnalysisContext() {
       imageDataUrl: cached.imageDataUrl,
       aiSummary: cached.aiSummary,
     }
+    applyAiSummaryToAnalysis(cached.aiSummary)
   } else {
     analysis.value = cached
+    applyAiSummaryToAnalysis(cached?.aiSummary)
   }
 
   if (!analysisId) return
 
   try {
     const saved = await getMyAnalysis(analysisId)
+    const normalized = normalizeAnalysisResponse(saved.analysis)
+    const summary = normalized.aiSummary || analysis.value?.aiSummary
     analysis.value = {
-      ...normalizeAnalysisResponse(saved.analysis),
+      ...normalized,
+      aiSummary: summary,
       imageDataUrl: getAnalysisImage(analysisId) || analysis.value?.imageDataUrl,
     }
+    applyAiSummaryToAnalysis(summary)
   } catch {
     // Keep the locally cached analysis if the saved analysis cannot be loaded.
   }

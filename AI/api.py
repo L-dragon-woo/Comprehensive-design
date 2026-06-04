@@ -18,6 +18,7 @@ from fastapi import FastAPI, File, Form, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 ROOT = Path(__file__).resolve().parent
 BEAUTY_AGENT = ROOT / "beauty-agent"
@@ -26,6 +27,7 @@ UPLOAD_DIR = ROOT / "uploads"
 LAST_ANALYSIS_PATH = ROOT / "analysis-result.json"
 _PIPELINE_CACHE: dict[str, Any] = {}
 _PIPELINE_CACHE_LOCK = threading.Lock()
+_PIPELINE_PREDICT_LOCK = threading.Lock()
 _PIPELINE_READY = False
 _PIPELINE_PRELOAD_ERROR: str | None = None
 
@@ -500,6 +502,12 @@ def _get_skin_pipeline(gender: str):
         return pipe
 
 
+def _predict_skin_pipeline(gender: str, image_path: str) -> Any:
+    pipe = _get_skin_pipeline(gender)
+    with _PIPELINE_PREDICT_LOCK:
+        return pipe.predict_single(image_path)
+
+
 def _truthy_env(name: str, default: str = "true") -> bool:
     return os.getenv(name, default).strip().lower() not in {"0", "false", "no", "off"}
 
@@ -799,8 +807,7 @@ async def analyze(
             target.write(chunk)
 
     try:
-        pipe = _get_skin_pipeline(gender)
-        result = pipe.predict_single(str(image_path))
+        result = await run_in_threadpool(_predict_skin_pipeline, gender, str(image_path))
 
         if result is None:
             INFERENCE_COUNT.labels("face_not_detected").inc()

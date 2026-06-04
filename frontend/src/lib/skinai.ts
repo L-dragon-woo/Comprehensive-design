@@ -139,12 +139,13 @@ function treatmentsFromAiSummary(summary?: string) {
       .replace(/^[-*]\s+/, "")
       .replace(/\*\*(.+?)\*\*/g, "$1")
       .trim()
-    const treatmentMatch = line.match(/^[-*]?\s*권장\s*시술\s*:\s*(.+)$/)
+    const treatmentMatch = line.match(/^[-*]?\s*(?:권장\s*시술|추천\s*시술)\s*:\s*(.+)$/)
     if (treatmentMatch) {
       if (current) treatments.push(current)
       const rawName = treatmentMatch[1]
         .replace(/\s*\(code\s+[^)]+\)/i, "")
         .replace(/\s*\([A-Z]+_\d+\)\s*$/i, "")
+        .replace(/^[A-Z]+_\d+\s*:\s*/i, "")
         .trim()
       const meta = treatmentMeta(rawName)
       current = { name: meta.name, match: "추천", reason: meta.reason, note: meta.note }
@@ -172,10 +173,13 @@ export function extractTreatmentsFromAiSummary(summary?: string) {
     "보툴리눔 톡신",
     "보톡스",
     "스킨부스터",
+    "수분 장벽 관리",
     "리쥬란",
     "리프팅 장비",
+    "탄력 장비",
     "콜라겐 부스터",
     "필러",
+    "윤곽 상담",
     "HIFU",
     "고주파",
     "미백 관리",

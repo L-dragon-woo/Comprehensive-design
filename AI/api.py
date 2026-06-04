@@ -639,12 +639,12 @@ def _mock_analysis(gender: str) -> dict[str, Any]:
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
+async def health() -> dict[str, str]:
     return {"status": "ok", "service": "ai"}
 
 
 @app.get("/ready", response_model=None)
-def ready() -> Any:
+async def ready() -> Any:
     if not _PIPELINE_READY:
         payload = {"status": "starting", "service": "ai"}
         if _PIPELINE_PRELOAD_ERROR:

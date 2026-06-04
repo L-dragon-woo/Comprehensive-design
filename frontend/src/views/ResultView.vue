@@ -10,7 +10,7 @@ import PageContainer from "@/components/PageContainer.vue"
 import ScoreRing from "@/components/ScoreRing.vue"
 import { apiFetch, getCurrentUser, getMyAnalysis } from "@/lib/api"
 import { openPdfPreview } from "@/lib/pdf"
-import { getAnalysisImage, getAnalysisNotes, getLastAnalysis, getLastAnalysisId, normalizeAnalysisResponse, saveAnalysisNotes, scoreBgColor, scoreColor, type AnalysisMetric, type AnalysisResult } from "@/lib/skinai"
+import { extractTreatmentsFromAiSummary, getAnalysisImage, getAnalysisNotes, getLastAnalysis, getLastAnalysisId, normalizeAnalysisResponse, saveAnalysisNotes, scoreBgColor, scoreColor, type AnalysisMetric, type AnalysisResult } from "@/lib/skinai"
 
 const route = useRoute()
 const result = ref<AnalysisResult | null>(null)
@@ -82,9 +82,18 @@ function downloadPdf() {
   })
 }
 
+function applyAiSummary(content: string) {
+  aiSummary.value = content
+  if (!result.value) return
+
+  result.value.aiSummary = content
+  const treatments = extractTreatmentsFromAiSummary(content)
+  if (treatments.length) result.value.treatments = treatments
+}
+
 async function fetchAiSummary(analysis: unknown) {
   if (result.value?.aiSummary && !isGenericFallbackSummary(result.value.aiSummary)) {
-    aiSummary.value = result.value.aiSummary
+    applyAiSummary(result.value.aiSummary)
     return
   }
 
@@ -119,8 +128,7 @@ async function fetchAiSummary(analysis: unknown) {
     }
 
     if (content) {
-      aiSummary.value = content
-      if (result.value) result.value.aiSummary = content
+      applyAiSummary(content)
     }
   } catch {
     // 요약 실패 시 조용히 무시
@@ -135,7 +143,7 @@ onMounted(async () => {
     // Re-normalize so updated metric extraction logic applies to cached data
     result.value = cached?.rawAnalysis ? { ...normalizeAnalysisResponse(cached.rawAnalysis), imageDataUrl: cached.imageDataUrl, aiSummary: cached.aiSummary } : cached
     loadNotes()
-    if (result.value?.aiSummary) aiSummary.value = result.value.aiSummary
+    if (result.value?.aiSummary) applyAiSummary(result.value.aiSummary)
     if (result.value?.rawAnalysis) fetchAiSummary(result.value.rawAnalysis)
     return
   }
@@ -148,7 +156,7 @@ onMounted(async () => {
       imageDataUrl: getAnalysisImage(analysisId.value) || undefined,
     }
     loadNotes()
-    if (result.value.aiSummary) aiSummary.value = result.value.aiSummary
+    if (result.value.aiSummary) applyAiSummary(result.value.aiSummary)
     if (result.value?.rawAnalysis) fetchAiSummary(result.value.rawAnalysis)
   } catch (e) {
     error.value = e instanceof Error ? e.message : "분석 결과를 불러오지 못했습니다."
@@ -199,7 +207,7 @@ onMounted(async () => {
         </div>
       </section>
 
-      <section class="py-4">
+      <section v-if="result.treatments?.length" class="py-4">
         <h3 class="mb-4 text-lg font-semibold">추천 시술</h3>
         <div class="space-y-3">
           <div v-for="treatment in result.treatments || []" :key="treatment.name" class="rounded-2xl border border-border bg-card p-5 shadow-sm">

@@ -161,6 +161,46 @@ function treatmentsFromAiSummary(summary?: string) {
   return treatments
 }
 
+export function extractTreatmentsFromAiSummary(summary?: string) {
+  const treatments = treatmentsFromAiSummary(summary)
+  if (!summary?.trim()) return treatments
+
+  const seen = new Set(treatments.map((item) => item.name))
+  const candidates = [
+    "피코토닝",
+    "IPL",
+    "보툴리눔 톡신",
+    "보톡스",
+    "스킨부스터",
+    "리쥬란",
+    "리프팅 장비",
+    "콜라겐 부스터",
+    "필러",
+    "HIFU",
+    "고주파",
+    "미백 관리",
+    "진정 관리",
+  ]
+  const lines = summary.split(/\r?\n/).map((line) => line.replace(/^[-*]\s+/, "").replace(/\*\*(.+?)\*\*/g, "$1").trim())
+
+  for (const line of lines) {
+    for (const candidate of candidates) {
+      if (!line.toLowerCase().includes(candidate.toLowerCase())) continue
+      const meta = treatmentMeta(candidate)
+      if (seen.has(meta.name)) continue
+      treatments.push({
+        name: meta.name,
+        match: "추천",
+        reason: line,
+        note: meta.note,
+      })
+      seen.add(meta.name)
+    }
+  }
+
+  return treatments
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {}
 }
@@ -303,7 +343,7 @@ export function normalizeAnalysisResponse(payload: unknown): AnalysisResult {
         const meta = treatmentLabels[name] || treatmentMeta(name)
         return { name: meta.name, match: "추천", reason: meta.reason, note: meta.note }
       })
-  const summaryTreatments = treatmentsFromAiSummary(aiSummary)
+  const summaryTreatments = extractTreatmentsFromAiSummary(aiSummary)
   const treatments = summaryTreatments.length ? summaryTreatments : directTreatments.length ? directTreatments : fallbackTreatments
 
   const recommendations = asStringArray(source.managementTips || source.careTips || source.recommendations).length

@@ -21,20 +21,37 @@ const props = withDefaults(defineProps<{ content: string; compact?: boolean }>()
 function clean(text: string) {
   return text
     .replace(/^#{1,6}\s*/, "")
-    .replace(/\*\*(.+?)\*\*/g, "$1")
     .replace(/\s{2,}/g, " ")
     .trim()
 }
 
+function plain(text: string) {
+  return clean(text).replace(/\*\*(.+?)\*\*/g, "$1")
+}
+
+function inlineParts(text: string) {
+  const parts: Array<{ text: string; strong: boolean }> = []
+  const pattern = /\*\*(.+?)\*\*/g
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastIndex) parts.push({ text: text.slice(lastIndex, match.index), strong: false })
+    parts.push({ text: match[1], strong: true })
+    lastIndex = pattern.lastIndex
+  }
+  if (lastIndex < text.length) parts.push({ text: text.slice(lastIndex), strong: false })
+  return parts.length ? parts : [{ text, strong: false }]
+}
+
 function isStep(line: string) {
-  return /^\[?\s*Step\s*\d+\s*\]?/i.test(clean(line))
+  return /^\[?\s*Step\s*\d+\s*\]?/i.test(plain(line))
 }
 
 function parseStep(line: string) {
-  const match = clean(line).match(/^\[?\s*(Step\s*(\d+))\s*\]?\s*(.+)?$/i)
+  const match = plain(line).match(/^\[?\s*(Step\s*(\d+))\s*\]?\s*(.+)?$/i)
   return {
     step: match?.[1]?.replace(/\s+/g, " ") || "Step",
-    title: clean(match?.[3] || line),
+    title: plain(match?.[3] || line),
   }
 }
 
@@ -45,7 +62,7 @@ function shouldSkipSection(section: AiSection | null) {
 }
 
 function parseTitleScore(text: string) {
-  let title = clean(text)
+  let title = plain(text)
   const scoreMatch = title.match(/(\d+(?:\.\d+)?)\s*점/)
   const score = scoreMatch ? `${scoreMatch[1]}점` : undefined
   if (score) {
@@ -174,6 +191,17 @@ const parsed = computed(() => {
       continue
     }
 
+    const step3EvidenceMatch = rawLine.match(/^[-*]\s+\*\*(.+?)\*\*\s*[:：]\s*(.+)$/)
+    if (step3EvidenceMatch && currentSection && (/step\s*3/i.test(currentSection.step) || /PubMed|근거|학술/.test(currentSection.title))) {
+      pushCard(currentSection, currentCard)
+      currentCard = null
+      currentSection.cards.push({
+        title: plain(step3EvidenceMatch[1]),
+        lines: [clean(step3EvidenceMatch[2])],
+      })
+      continue
+    }
+
     const bulletMatch = rawLine.match(/^[-*]\s+(.+)$/)
     if (bulletMatch) {
       const bullet = clean(bulletMatch[1])
@@ -250,6 +278,10 @@ const parsed = computed(() => {
 })
 
 function sectionClass(title: string) {
+  const label = plain(title)
+  if (/진단|결과/.test(label)) return "border-sky-200 bg-sky-50"
+  if (/시술|추천/.test(label)) return "border-violet-200 bg-violet-50"
+  if (/PubMed|근거|학술/.test(label)) return "border-emerald-200 bg-emerald-50"
   if (/진단|결과/.test(title)) return "border-sky-200 bg-sky-50"
   if (/시술|추천/.test(title)) return "border-violet-200 bg-violet-50"
   if (/PubMed|근거|학술/.test(title)) return "border-emerald-200 bg-emerald-50"
@@ -257,6 +289,9 @@ function sectionClass(title: string) {
 }
 
 function cardAccent(title: string) {
+  const label = plain(title)
+  if (/PubMed|근거|학술/.test(label)) return "bg-emerald-500"
+  if (/시술|추천/.test(label)) return "bg-violet-500"
   if (/PubMed|근거|학술/.test(title)) return "bg-emerald-500"
   if (/시술|추천/.test(title)) return "bg-violet-500"
   return "bg-primary"
@@ -270,7 +305,7 @@ function cardAccent(title: string) {
         {{ parsed.title }}
       </h4>
       <p v-for="(line, index) in parsed.intro" :key="index" class="max-w-full break-words leading-relaxed text-muted-foreground">
-        {{ line }}
+        <span v-for="(part, partIndex) in inlineParts(line)" :key="partIndex" :class="part.strong && 'font-semibold text-foreground'">{{ part.text }}</span>
       </p>
     </header>
 
@@ -287,7 +322,7 @@ function cardAccent(title: string) {
       </div>
 
       <p v-for="(note, index) in section.notes" :key="index" class="max-w-full break-words leading-relaxed text-foreground/80">
-        {{ note }}
+        <span v-for="(part, partIndex) in inlineParts(note)" :key="partIndex" :class="part.strong && 'font-semibold text-foreground'">{{ part.text }}</span>
       </p>
 
       <div v-if="section.cards.length" class="grid gap-3">
@@ -311,7 +346,9 @@ function cardAccent(title: string) {
               <ul v-if="card.lines.length" class="space-y-1.5">
                 <li v-for="(line, lineIndex) in card.lines" :key="lineIndex" class="flex gap-2 leading-relaxed text-foreground/85">
                   <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/60" />
-                  <span class="min-w-0 flex-1 break-words">{{ line }}</span>
+                  <span class="min-w-0 flex-1 break-words">
+                    <span v-for="(part, partIndex) in inlineParts(line)" :key="partIndex" :class="part.strong && 'font-semibold text-foreground'">{{ part.text }}</span>
+                  </span>
                 </li>
               </ul>
             </div>
@@ -322,7 +359,7 @@ function cardAccent(title: string) {
 
     <footer v-if="parsed.closing.length" class="max-w-full space-y-2 overflow-hidden rounded-xl bg-secondary px-4 py-3 text-foreground/80">
       <p v-for="(line, index) in parsed.closing" :key="index" class="break-words leading-relaxed">
-        {{ line }}
+        <span v-for="(part, partIndex) in inlineParts(line)" :key="partIndex" :class="part.strong && 'font-semibold text-foreground'">{{ part.text }}</span>
       </p>
     </footer>
   </article>

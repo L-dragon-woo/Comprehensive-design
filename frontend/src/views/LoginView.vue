@@ -4,6 +4,7 @@ import { computed, ref } from "vue"
 import { useRoute, useRouter } from "vue-router"
 import BaseButton from "@/components/BaseButton.vue"
 import { login, register, type ProfilePayload } from "@/lib/api"
+import { prefetchNearbyHospitals } from "@/lib/hospitalSearch"
 
 const router = useRouter()
 const route = useRoute()
@@ -82,6 +83,7 @@ async function submit() {
     } else {
       await register(username.value, password.value, profilePayload())
     }
+    prefetchNearbyHospitals()
     router.push(String(route.query.redirect || "/"))
   } catch (e) {
     error.value = e instanceof Error ? e.message : "요청을 처리하지 못했습니다."

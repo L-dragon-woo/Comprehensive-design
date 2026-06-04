@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Activity, CircleDot, Droplets, Stethoscope, Sun } from "lucide-vue-next"
 import { computed } from "vue"
-import { scoreBgColor, scoreColor, type AnalysisMetric } from "@/lib/skinai"
+import { scoreBgColor, scoreColor, type AnalysisMetric, type AnalysisResult } from "@/lib/skinai"
 
 const props = defineProps<{
   overallScore: number
@@ -9,7 +9,7 @@ const props = defineProps<{
   mainConcern: string
   metrics?: AnalysisMetric[]
   concerns?: string[]
-  treatments?: Array<{ name: string; match: string; reason: string; note: string }>
+  treatments?: AnalysisResult["treatments"]
   imageDataUrl?: string
   hydration?: number
   sebum?: number
@@ -46,7 +46,7 @@ const summaryMetrics = computed(() => {
   ]
 })
 
-const topTreatments = computed(() => (props.treatments ?? []).slice(0, 2))
+const topTreatments = computed(() => (props.treatments ?? []).slice(0, 4))
 const displayConcerns = computed(() => (props.concerns ?? []).slice(0, 4))
 </script>
 
@@ -101,12 +101,12 @@ const displayConcerns = computed(() => (props.concerns ?? []).slice(0, 4))
     <template v-if="topTreatments.length">
       <div class="border-t border-border px-4 py-3">
         <p class="mb-2 text-xs font-medium text-muted-foreground">추천 시술</p>
-        <div class="space-y-1.5">
-          <div v-for="t in topTreatments" :key="t.name" class="flex items-center gap-2">
-            <Stethoscope class="h-3.5 w-3.5 shrink-0 text-primary" />
-            <span class="text-xs font-medium">{{ t.name }}</span>
-            <span class="truncate text-xs text-muted-foreground">· {{ t.reason }}</span>
-          </div>
+        <div class="flex flex-wrap gap-1.5">
+          <span v-for="t in topTreatments" :key="t.name" class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+            <Stethoscope class="h-3.5 w-3.5 shrink-0" />
+            {{ t.name }}
+            <span v-if="t.score !== undefined" class="font-medium text-primary/70">{{ t.score }}점</span>
+          </span>
         </div>
       </div>
     </template>

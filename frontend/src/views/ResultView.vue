@@ -10,7 +10,7 @@ import PageContainer from "@/components/PageContainer.vue"
 import ScoreRing from "@/components/ScoreRing.vue"
 import { apiFetch, getCurrentUser, getMyAnalysis } from "@/lib/api"
 import { openPdfPreview } from "@/lib/pdf"
-import { extractTreatmentsFromAiSummary, getAnalysisImage, getAnalysisNotes, getLastAnalysis, getLastAnalysisId, normalizeAnalysisResponse, saveAnalysisNotes, scoreBgColor, scoreColor, type AnalysisMetric, type AnalysisResult } from "@/lib/skinai"
+import { deriveTreatmentsFromAnalysis, getAnalysisImage, getAnalysisNotes, getLastAnalysis, getLastAnalysisId, normalizeAnalysisResponse, saveAnalysisNotes, scoreBgColor, scoreColor, type AnalysisMetric, type AnalysisResult } from "@/lib/skinai"
 
 const route = useRoute()
 const result = ref<AnalysisResult | null>(null)
@@ -21,6 +21,8 @@ const resolvedId = computed(() => analysisId.value || getLastAnalysisId() || "")
 
 const aiSummary = ref("")
 const aiSummaryLoading = ref(false)
+const selectedTreatmentName = ref("")
+const selectedTreatment = computed(() => (result.value?.treatments || []).find((item) => item.name === selectedTreatmentName.value) || result.value?.treatments?.[0] || null)
 
 const metricGroups = computed(() => {
   const metrics = result.value?.metrics ?? []
@@ -87,8 +89,11 @@ function applyAiSummary(content: string) {
   if (!result.value) return
 
   result.value.aiSummary = content
-  const treatments = extractTreatmentsFromAiSummary(content)
+  const treatments = deriveTreatmentsFromAnalysis(result.value, content)
   if (treatments.length) result.value.treatments = treatments
+  if (!selectedTreatmentName.value || !result.value.treatments?.some((item) => item.name === selectedTreatmentName.value)) {
+    selectedTreatmentName.value = result.value.treatments?.[0]?.name || ""
+  }
 }
 
 async function fetchAiSummary(analysis: unknown) {
@@ -208,23 +213,36 @@ onMounted(async () => {
       </section>
 
       <section v-if="result.treatments?.length" class="py-4">
-        <h3 class="mb-4 text-lg font-semibold">추천 시술</h3>
-        <div class="space-y-3">
-          <div v-for="treatment in result.treatments || []" :key="treatment.name" class="rounded-2xl border border-border bg-card p-5 shadow-sm">
-            <div class="mb-3 flex items-start justify-between gap-3">
-              <div class="flex items-center gap-3">
-                <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-                  <Stethoscope class="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <h4 class="font-semibold">{{ treatment.name }}</h4>
-                  <p class="text-sm text-muted-foreground">{{ treatment.reason }}</p>
-                </div>
-              </div>
-              <span class="rounded-full bg-success/10 px-3 py-1 text-xs font-semibold text-success">{{ treatment.match }}</span>
+        <div class="mb-3 flex items-center justify-between gap-3">
+          <h3 class="text-lg font-semibold">추천 시술</h3>
+          <span class="text-xs text-muted-foreground">점수가 낮은 지표 기준</span>
+        </div>
+        <div class="mb-4 flex flex-wrap gap-2">
+          <button
+            v-for="treatment in result.treatments || []"
+            :key="treatment.name"
+            type="button"
+            :class="[
+              'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors',
+              selectedTreatment?.name === treatment.name ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-foreground hover:border-primary/50',
+            ]"
+            @click="selectedTreatmentName = treatment.name"
+          >
+            <Stethoscope class="h-3.5 w-3.5" />
+            {{ treatment.name }}
+            <span v-if="treatment.score !== undefined" :class="selectedTreatment?.name === treatment.name ? 'text-primary-foreground/80' : 'text-muted-foreground'">{{ treatment.score }}점</span>
+          </button>
+        </div>
+        <div v-if="selectedTreatment" class="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <div class="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <h4 class="font-semibold">{{ selectedTreatment.name }}</h4>
+              <p class="mt-1 text-sm text-muted-foreground">{{ selectedTreatment.reason }}</p>
             </div>
-            <p class="rounded-xl bg-secondary px-4 py-3 text-sm">{{ treatment.note }}</p>
+            <span class="shrink-0 rounded-full bg-success/10 px-3 py-1 text-xs font-semibold text-success">{{ selectedTreatment.match }}</span>
           </div>
+          <p v-if="selectedTreatment.basis" class="mb-2 rounded-xl bg-primary/5 px-4 py-3 text-sm font-medium text-primary">{{ selectedTreatment.basis }} 근거</p>
+          <p class="rounded-xl bg-secondary px-4 py-3 text-sm">{{ selectedTreatment.note }}</p>
         </div>
       </section>
 

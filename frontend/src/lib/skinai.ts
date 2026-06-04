@@ -48,7 +48,7 @@ export type AnalysisResult = {
   imageUrl?: string
   metrics?: AnalysisMetric[]
   concerns?: string[]
-  treatments?: Array<{ name: string; match: string; reason: string; note: string }>
+  treatments?: Array<{ name: string; match: string; reason: string; note: string; score?: number; basis?: string }>
   recommendations?: string[]
 }
 
@@ -162,44 +162,99 @@ function treatmentsFromAiSummary(summary?: string) {
   return treatments
 }
 
+function treatmentForMetric(metric: AnalysisMetric) {
+  const title = metric.title
+  const category = metric.category || ""
+  const basis = `${title} ${metric.score}점`
+  const careReason = `${basis}으로 집중 관리 우선순위에 포함되었습니다.`
+
+  if (/색소|광채/.test(title) || /색소/.test(category)) {
+    return {
+      name: "피코토닝",
+      match: "점수 기반",
+      reason: careReason,
+      note: "색소가 낮게 나온 부위는 피코토닝, IPL, 미백 관리 중 피부 타입과 자극 반응을 보고 선택하는 편이 좋습니다.",
+      score: metric.score,
+      basis,
+    }
+  }
+
+  if (/처짐|탄력|sagging/i.test(metric.id) || /처짐/.test(category)) {
+    return {
+      name: "리프팅 장비",
+      match: "점수 기반",
+      reason: careReason,
+      note: "처짐 지표가 낮을 때는 리프팅 장비, 콜라겐 부스터, 윤곽 상담을 강도 낮은 단계부터 비교해볼 수 있습니다.",
+      score: metric.score,
+      basis,
+    }
+  }
+
+  if (/주름|wrinkle/i.test(metric.id) || /주름/.test(category)) {
+    const isExpressionLine = /이마|미간|눈가|forehead|eye/i.test(`${title} ${metric.id}`)
+    return {
+      name: isExpressionLine ? "보툴리눔 톡신" : "리쥬란 힐러",
+      match: "점수 기반",
+      reason: careReason,
+      note: isExpressionLine
+        ? "표정 주름 점수가 낮으면 보툴리눔 톡신을 고려하되, 눈썹 처짐과 표정 습관을 함께 확인해야 합니다."
+        : "깊은 주름이나 볼륨 저하는 리쥬란, 스킨부스터, 탄력 장비를 피부 두께와 회복 부담에 맞춰 비교해볼 수 있습니다.",
+      score: metric.score,
+      basis,
+    }
+  }
+
+  if (/피부결|광채|균일|texture|homogenity/i.test(`${title} ${metric.id}`) || /균일도/.test(category)) {
+    return {
+      name: "스킨부스터",
+      match: "점수 기반",
+      reason: careReason,
+      note: "피부결과 광채 점수가 낮으면 수분 장벽 관리, 스킨부스터, 진정 관리를 먼저 비교하는 편이 부담이 적습니다.",
+      score: metric.score,
+      basis,
+    }
+  }
+
+  return null
+}
+
+export function deriveTreatmentsFromAnalysis(result: Pick<AnalysisResult, "metrics" | "treatments" | "aiSummary">, summary = result.aiSummary) {
+  const metricTreatments = (result.metrics ?? [])
+    .filter((metric) => metric.id !== "age" && metric.score <= 85)
+    .sort((a, b) => a.score - b.score)
+    .map(treatmentForMetric)
+    .filter((item): item is NonNullable<ReturnType<typeof treatmentForMetric>> => Boolean(item))
+
+  const seen = new Set<string>()
+  const grounded = metricTreatments.filter((item) => {
+    if (seen.has(item.name)) return false
+    seen.add(item.name)
+    return true
+  }).slice(0, 4)
+
+  if (grounded.length) return grounded
+
+  const explicit = result.treatments?.filter((item) => item.name && !/AI 종합 분석 요약 기반 추천/.test(item.reason)) ?? []
+  if (explicit.length) return explicit.slice(0, 4)
+
+  return extractTreatmentsFromAiSummary(summary).slice(0, 4)
+}
+
 export function extractTreatmentsFromAiSummary(summary?: string) {
   const treatments = treatmentsFromAiSummary(summary)
   if (!summary?.trim()) return treatments
 
   const seen = new Set(treatments.map((item) => item.name))
-  const candidates = [
-    "피코토닝",
-    "IPL",
-    "보툴리눔 톡신",
-    "보톡스",
-    "스킨부스터",
-    "수분 장벽 관리",
-    "리쥬란",
-    "리프팅 장비",
-    "탄력 장비",
-    "콜라겐 부스터",
-    "필러",
-    "윤곽 상담",
-    "HIFU",
-    "고주파",
-    "미백 관리",
-    "진정 관리",
-  ]
   const lines = summary.split(/\r?\n/).map((line) => line.replace(/^[-*]\s+/, "").replace(/\*\*(.+?)\*\*/g, "$1").trim())
 
   for (const line of lines) {
-    for (const candidate of candidates) {
-      if (!line.toLowerCase().includes(candidate.toLowerCase())) continue
-      const meta = treatmentMeta(candidate)
-      if (seen.has(meta.name)) continue
-      treatments.push({
-        name: meta.name,
-        match: "추천",
-        reason: line,
-        note: meta.note,
-      })
-      seen.add(meta.name)
-    }
+    const step2Match = line.match(/^(.+?)\s*\((\d+(?:\.\d+)?)점\)\s*$/)
+    if (!step2Match) continue
+    const metric = { id: step2Match[1], title: step2Match[1], score: Number(step2Match[2]), status: "", description: "" }
+    const item = treatmentForMetric(metric)
+    if (!item || seen.has(item.name)) continue
+    treatments.push(item)
+    seen.add(item.name)
   }
 
   return treatments
@@ -347,8 +402,7 @@ export function normalizeAnalysisResponse(payload: unknown): AnalysisResult {
         const meta = treatmentLabels[name] || treatmentMeta(name)
         return { name: meta.name, match: "추천", reason: meta.reason, note: meta.note }
       })
-  const summaryTreatments = extractTreatmentsFromAiSummary(aiSummary)
-  const treatments = summaryTreatments.length ? summaryTreatments : directTreatments.length ? directTreatments : fallbackTreatments
+  const seedTreatments = directTreatments.length ? directTreatments : fallbackTreatments
 
   const recommendations = asStringArray(source.managementTips || source.careTips || source.recommendations).length
     ? asStringArray(source.managementTips || source.careTips || source.recommendations).map((item) => treatmentLabels[item]?.note || item)
@@ -374,7 +428,7 @@ export function normalizeAnalysisResponse(payload: unknown): AnalysisResult {
     imageUrl: typeof source.imageUrl === "string" ? source.imageUrl : typeof root.imageUrl === "string" ? root.imageUrl : undefined,
     metrics,
     concerns,
-    treatments,
+    treatments: deriveTreatmentsFromAnalysis({ metrics, treatments: seedTreatments, aiSummary }),
     recommendations,
   }
 }

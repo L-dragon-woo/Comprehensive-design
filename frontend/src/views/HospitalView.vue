@@ -6,10 +6,11 @@ import BaseButton from "@/components/BaseButton.vue"
 import BottomNav from "@/components/BottomNav.vue"
 import PageContainer from "@/components/PageContainer.vue"
 import { getCurrentUser, uploadReportFile } from "@/lib/api"
+import { getBrowserCoords, getCachedHospitalSearch, searchHospitals, type HospitalSearchResult } from "@/lib/hospitalSearch"
 import { getPdfHtml, openPdfPreview } from "@/lib/pdf"
 import { getAnalysisNotes, getLastAnalysis, getLastAnalysisId, saveHospitalApplication, type AnalysisResult } from "@/lib/skinai"
 
-type Hospital = { id: string; name: string; roadAddress: string; address: string; phone: string; distance: string; x: string; y: string; placeUrl: string }
+type Hospital = HospitalSearchResult
 
 declare global {
   interface Window {
@@ -175,26 +176,8 @@ async function loadHospitals(useLocation = false) {
   loading.value = true
   error.value = ""
   try {
-    if (useLocation && navigator.geolocation) {
-      await new Promise<void>((resolve) =>
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            coords.value = { x: String(position.coords.longitude), y: String(position.coords.latitude) }
-            resolve()
-          },
-          () => resolve(),
-        ),
-      )
-    }
-    const params = new URLSearchParams({ query: query.value || "피부과" })
-    if (coords.value) {
-      params.set("x", coords.value.x)
-      params.set("y", coords.value.y)
-      params.set("radius", "5000")
-    }
-    const res = await fetch(`/api/hospitals/search?${params}`)
-    if (!res.ok) throw new Error(res.status === 503 ? "카카오 REST API 키가 설정되지 않았습니다." : `병원 검색에 실패했습니다. (${res.status})`)
-    hospitals.value = await res.json()
+    if (useLocation) coords.value = await getBrowserCoords()
+    hospitals.value = await searchHospitals({ query: query.value, coords: coords.value })
     selectedHospitalId.value = ""
     submittedHospitalName.value = ""
   } catch (e) {
@@ -260,7 +243,18 @@ watch(
 
 watch(selectedHospitalId, () => focusSelectedHospitalOnMap())
 
-onMounted(() => loadHospitals(true))
+onMounted(() => {
+  const cached = getCachedHospitalSearch()
+  if (cached) {
+    hospitals.value = cached.hospitals
+    coords.value = cached.coords
+    query.value = cached.query
+    nextTick(() => renderKakaoMap())
+    loadHospitals(Boolean(cached.coords))
+    return
+  }
+  loadHospitals(true)
+})
 </script>
 
 <template>

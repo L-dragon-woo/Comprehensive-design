@@ -9,7 +9,7 @@ import ChatBubble from "@/components/ChatBubble.vue"
 import ChatTypingIndicator from "@/components/ChatTypingIndicator.vue"
 import PageContainer from "@/components/PageContainer.vue"
 import { apiFetch, getMyAnalysis } from "@/lib/api"
-import { extractTreatmentsFromAiSummary, getAnalysisImage, getLastAnalysis, getLastAnalysisId, normalizeAnalysisResponse, type AnalysisResult, type ChatMessage } from "@/lib/skinai"
+import { deriveTreatmentsFromAnalysis, getAnalysisImage, getLastAnalysis, getLastAnalysisId, normalizeAnalysisResponse, type AnalysisResult, type ChatMessage } from "@/lib/skinai"
 
 const analysisId = getLastAnalysisId()
 const analysis = ref<AnalysisResult | null>(null)
@@ -39,7 +39,7 @@ const hasUserConsultation = computed(() => messages.value.some((message) => mess
 function applyAiSummaryToAnalysis(content?: string) {
   if (!analysis.value || !content?.trim()) return
   analysis.value.aiSummary = content
-  const treatments = extractTreatmentsFromAiSummary(content)
+  const treatments = deriveTreatmentsFromAnalysis(analysis.value, content)
   if (treatments.length) analysis.value.treatments = treatments
 }
 

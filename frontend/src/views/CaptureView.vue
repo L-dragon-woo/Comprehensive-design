@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Camera, RotateCcw, SwitchCamera, UserCheck, UserX, X } from "lucide-vue-next"
-import { onBeforeUnmount, onMounted, ref } from "vue"
+import { computed, onBeforeUnmount, onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
 import BaseButton from "@/components/BaseButton.vue"
 import { analyzePresignedImage, apiFetch, createImagePresignedUpload, readErrorReason, uploadToPresignedUrl } from "@/lib/api"
@@ -24,6 +24,7 @@ const loadingProgress = ref(0)
 const loadingMessage = ref("이미지를 준비하는 중입니다")
 const loadingTipIndex = ref(0)
 const facingMode = ref<"user" | "environment">("user")
+const isMirroredCamera = computed(() => facingMode.value === "user")
 
 const faceDetected = ref(false)
 const faceDetectionSupported = ref(false)
@@ -177,7 +178,16 @@ function capture() {
 
   c.width = v.videoWidth
   c.height = v.videoHeight
-  c.getContext("2d")?.drawImage(v, 0, 0)
+  const ctx = c.getContext("2d")
+  if (ctx) {
+    ctx.save()
+    if (isMirroredCamera.value) {
+      ctx.translate(c.width, 0)
+      ctx.scale(-1, 1)
+    }
+    ctx.drawImage(v, 0, 0, c.width, c.height)
+    ctx.restore()
+  }
   capturedImage.value = c.toDataURL("image/jpeg", 0.92)
   error.value = ""
   faceWarningShown.value = false
@@ -355,7 +365,15 @@ onBeforeUnmount(() => {
     <div class="flex flex-1 items-center justify-center px-5">
       <div class="relative aspect-[3/4] w-full max-w-sm overflow-hidden rounded-3xl bg-black">
         <img v-if="capturedImage" :src="capturedImage" alt="촬영 이미지" class="h-full w-full object-cover" />
-        <video v-else ref="video" autoplay playsinline muted class="h-full w-full object-cover" />
+        <video
+          v-else
+          ref="video"
+          autoplay
+          playsinline
+          muted
+          class="h-full w-full object-cover"
+          :class="{ '-scale-x-100': isMirroredCamera }"
+        />
 
         <!-- 얼굴 가이드 타원 오버레이 -->
         <div v-if="!capturedImage" class="pointer-events-none absolute inset-0 flex items-center justify-center">

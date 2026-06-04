@@ -26,6 +26,8 @@ UPLOAD_DIR = ROOT / "uploads"
 LAST_ANALYSIS_PATH = ROOT / "analysis-result.json"
 _PIPELINE_CACHE: dict[str, Any] = {}
 _PIPELINE_CACHE_LOCK = threading.Lock()
+_PIPELINE_READY = False
+_PIPELINE_PRELOAD_ERROR: str | None = None
 
 for path in (BEAUTY_AGENT, PIPELINE_DIR):
     if str(path) not in sys.path:
@@ -411,6 +413,29 @@ def _get_skin_pipeline(gender: str):
         return pipe
 
 
+def _truthy_env(name: str, default: str = "true") -> bool:
+    return os.getenv(name, default).strip().lower() not in {"0", "false", "no", "off"}
+
+
+@app.on_event("startup")
+def preload_default_pipeline() -> None:
+    global _PIPELINE_PRELOAD_ERROR, _PIPELINE_READY
+
+    if not _truthy_env("AI_PRELOAD_PIPELINE"):
+        _PIPELINE_READY = True
+        return
+
+    gender = os.getenv("AI_DEFAULT_GENDER", "female")
+    try:
+        _get_skin_pipeline(gender)
+        _PIPELINE_PRELOAD_ERROR = None
+        _PIPELINE_READY = True
+    except Exception as exc:
+        _PIPELINE_PRELOAD_ERROR = f"{type(exc).__name__}: {exc}"
+        _PIPELINE_READY = False
+        print(f"[startup] pipeline preload failed: {_PIPELINE_PRELOAD_ERROR}", file=sys.stderr)
+
+
 def _format_chat_history(history: list[dict[str, Any]] | None) -> str:
     if not history:
         return "No previous conversation"
@@ -521,6 +546,16 @@ def _mock_analysis(gender: str) -> dict[str, Any]:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "ai"}
+
+
+@app.get("/ready")
+def ready() -> Response | dict[str, str]:
+    if not _PIPELINE_READY:
+        payload = {"status": "starting", "service": "ai"}
+        if _PIPELINE_PRELOAD_ERROR:
+            payload["error"] = _PIPELINE_PRELOAD_ERROR
+        return Response(json.dumps(payload), status_code=503, media_type="application/json")
+    return {"status": "ready", "service": "ai"}
 
 
 @app.get("/metrics")

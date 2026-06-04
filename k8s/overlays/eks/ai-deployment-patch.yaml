@@ -18,14 +18,14 @@ spec:
                 name: skinai-secret
           startupProbe:
             httpGet:
-              path: /health
+              path: /ready
               port: 8000
             periodSeconds: 15
             timeoutSeconds: 10
             failureThreshold: 24
           readinessProbe:
             httpGet:
-              path: /health
+              path: /ready
               port: 8000
             initialDelaySeconds: 20
             periodSeconds: 10

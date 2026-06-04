@@ -21,8 +21,10 @@ const hasMoreApplications = computed(() => applications.value.length > 1)
 async function viewApplicationPdf(application: HospitalApplication) {
   if (application.pdfKey) {
     const storedFile = await getStoredFileUrl(application.pdfKey)
-    window.open(storedFile.url, "_blank", "noopener,noreferrer")
-    return
+    if (storedFile.url) {
+      window.open(storedFile.url, "_blank", "noopener,noreferrer")
+      return
+    }
   }
 
   if (application.pdfUrl) {

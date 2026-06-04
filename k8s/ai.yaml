@@ -39,10 +39,17 @@ spec:
               memory: 2Gi
             limits:
               cpu: "2"
-              memory: 3Gi
+              memory: 4Gi
           volumeMounts:
             - name: ai-uploads
               mountPath: /app/uploads
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 24
           readinessProbe:
             httpGet:
               path: /health

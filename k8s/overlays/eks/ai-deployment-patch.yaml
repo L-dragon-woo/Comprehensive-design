@@ -16,6 +16,13 @@ spec:
           envFrom:
             - secretRef:
                 name: skinai-secret
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 24
           readinessProbe:
             httpGet:
               path: /health

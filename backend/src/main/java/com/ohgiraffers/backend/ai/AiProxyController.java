@@ -179,15 +179,23 @@ public class AiProxyController {
                 .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .block();
         if (response != null) {
-            AnalysisResultDocument saved = analysisResultService.save(username, response);
-            String imageUrl = s3StorageService.presignedUrl(request.imageKey());
+            AnalysisResultDocument saved = trySaveAnalysis(username, response);
+            String analysisId = saved == null ? "local-" + UUID.randomUUID() : saved.getId();
             String uploadedAt = Instant.now().toString();
-            analysisResultService.saveImageObject(username, saved.getId(), request.imageKey(), imageUrl, uploadedAt);
-            response.putIfAbsent("analysisId", saved.getId());
-            response.putIfAbsent("createdAt", instantString(saved.getCreatedAt()));
+            response.putIfAbsent("analysisId", analysisId);
+            response.putIfAbsent("createdAt", saved == null ? uploadedAt : instantString(saved.getCreatedAt()));
+            response.putIfAbsent("persisted", saved != null);
             response.put("imageKey", request.imageKey());
-            response.put("imageUrl", imageUrl);
             response.put("imageUploadedAt", uploadedAt);
+            try {
+                String imageUrl = s3StorageService.presignedUrl(request.imageKey());
+                response.put("imageUrl", imageUrl);
+                if (saved != null) {
+                    analysisResultService.saveImageObject(username, saved.getId(), request.imageKey(), imageUrl, uploadedAt);
+                }
+            } catch (RuntimeException ignored) {
+                response.put("imageMetadataStatus", "failed");
+            }
         }
         return response;
     }

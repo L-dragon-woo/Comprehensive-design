@@ -21,12 +21,17 @@ public class StorageController {
     }
 
     @PostMapping(value = "/api/files/reports", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public S3StorageService.StoredObject uploadReport(
+    public ReportUploadResponse uploadReport(
             @RequestPart("file") MultipartFile file,
             @RequestParam(required = false) String analysisId,
             Authentication authentication
     ) {
-        return storageService.uploadReport(authentication.getName(), analysisId, file);
+        try {
+            S3StorageService.StoredObject stored = storageService.uploadReport(authentication.getName(), analysisId, file);
+            return new ReportUploadResponse(stored.key(), stored.url(), stored.uploadedAt(), "stored");
+        } catch (RuntimeException ignored) {
+            return new ReportUploadResponse(null, null, null, "failed");
+        }
     }
 
     @PostMapping("/api/files/images/presigned-upload")
@@ -53,4 +58,6 @@ public class StorageController {
     }
 
     public record PresignedUploadRequest(String filename, String contentType, Long contentLength) {}
+
+    public record ReportUploadResponse(String key, String url, String uploadedAt, String storageStatus) {}
 }

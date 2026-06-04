@@ -12,7 +12,7 @@ export type UserProfile = {
 export type AuthResponse = { accessToken: string; refreshToken: string; expiresIn: number; tokenType: string; user: UserProfile }
 export type ProfilePayload = Omit<UserProfile, "username">
 export type SavedAnalysis = { analysisId: string; createdAt: string; analysis: unknown }
-export type StoredFile = { key: string; url: string; uploadedAt: string }
+export type StoredFile = { key?: string | null; url?: string | null; uploadedAt?: string | null; storageStatus?: "stored" | "failed" }
 export type PresignedUpload = { key: string; url: string; method: "PUT"; contentType: string; expiresAt: string }
 
 const accessKey = "skinai:access-token"

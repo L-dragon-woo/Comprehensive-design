@@ -22,6 +22,7 @@ export interface HospitalApplication {
   includedItems: string[]
   pdfUrl?: string
   pdfKey?: string
+  reportStorageStatus?: "stored" | "failed"
   analysisId?: string
   analysisSnapshot?: AnalysisResult
   submissionNote?: string

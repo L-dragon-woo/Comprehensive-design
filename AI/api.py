@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -23,6 +24,8 @@ BEAUTY_AGENT = ROOT / "beauty-agent"
 PIPELINE_DIR = ROOT / "pipeline"
 UPLOAD_DIR = ROOT / "uploads"
 LAST_ANALYSIS_PATH = ROOT / "analysis-result.json"
+_PIPELINE_CACHE: dict[str, Any] = {}
+_PIPELINE_CACHE_LOCK = threading.Lock()
 
 for path in (BEAUTY_AGENT, PIPELINE_DIR):
     if str(path) not in sys.path:
@@ -393,6 +396,21 @@ def _runtime_config_path() -> Path:
     return out
 
 
+def _get_skin_pipeline(gender: str):
+    normalized_gender = (gender or "female").strip().lower()
+    if normalized_gender not in {"male", "female"}:
+        normalized_gender = "female"
+
+    with _PIPELINE_CACHE_LOCK:
+        pipe = _PIPELINE_CACHE.get(normalized_gender)
+        if pipe is None:
+            from pipeline import SkinPipeline
+
+            pipe = SkinPipeline(_runtime_config_path(), gender=normalized_gender)
+            _PIPELINE_CACHE[normalized_gender] = pipe
+        return pipe
+
+
 def _format_chat_history(history: list[dict[str, Any]] | None) -> str:
     if not history:
         return "No previous conversation"
@@ -657,9 +675,7 @@ async def analyze(
             target.write(chunk)
 
     try:
-        from pipeline import SkinPipeline
-
-        pipe = SkinPipeline(_runtime_config_path(), gender=gender)
+        pipe = _get_skin_pipeline(gender)
         result = pipe.predict_single(str(image_path))
 
         if result is None:

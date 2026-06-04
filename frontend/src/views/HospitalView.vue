@@ -210,6 +210,7 @@ async function submitReport() {
   const analysisId = getLastAnalysisId() || undefined
   let pdfUrl: string | undefined
   let pdfKey: string | undefined
+  let reportStorageStatus: "stored" | "failed" = "failed"
 
   try {
     const html = getPdfHtml({
@@ -220,14 +221,16 @@ async function submitReport() {
     })
     const reportBlob = new Blob([html], { type: "text/html;charset=UTF-8" })
     const storedReport = await uploadReportFile(reportBlob, `skinai-report-${analysisId || Date.now()}.html`, analysisId)
-    pdfUrl = storedReport.url
-    pdfKey = storedReport.key
+    pdfUrl = storedReport.url || undefined
+    pdfKey = storedReport.key || undefined
+    reportStorageStatus = storedReport.storageStatus === "stored" ? "stored" : "failed"
   } catch (e) {
     error.value = e instanceof Error ? e.message : "report upload failed"
     submittingReport.value = false
     return
   }
 
+  error.value = ""
   submittedHospitalName.value = selectedHospital.value.name
   saveHospitalApplication({
     id: Date.now().toString(),
@@ -240,6 +243,7 @@ async function submitReport() {
     submissionNote: submitNote.value || undefined,
     pdfUrl,
     pdfKey,
+    reportStorageStatus,
   })
   submittingReport.value = false
   closeSubmitModal()

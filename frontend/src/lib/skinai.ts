@@ -57,6 +57,7 @@ const analysisStorageKey = "skinai:last-analysis"
 const lastAnalysisIdKey = "skinai:last-analysis-id"
 const analysisImagesStorageKey = "skinai:analysis-images"
 const notesStorageKey = "skinai:analysis-notes"
+const analysisImageCache = new Map<string, string>()
 
 const metricLabels: Record<string, { title: string; status: string; description: string; category: string }> = {
   hydration: { title: "수분", status: "관리 필요", description: "피부 수분 밸런스를 확인하세요", category: "피부 상태" },
@@ -273,6 +274,70 @@ function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.map(String).filter(Boolean) : []
 }
 
+const heavyStorageKeys = new Set([
+  "base64",
+  "capturedataurl",
+  "capturedimage",
+  "imagedata",
+  "imagedataurl",
+  "imagebase64",
+  "photodataurl",
+  "thumbnaildataurl",
+])
+const largeStorageStringLength = 100_000
+
+function normalizedStorageKey(key: string) {
+  return key.toLowerCase().replace(/[^a-z0-9]/g, "")
+}
+
+function shouldDropStorageString(value: string) {
+  return value.length > largeStorageStringLength || value.startsWith("data:image/")
+}
+
+function sanitizeStorageValue(value: unknown, seen = new WeakSet<object>()): unknown {
+  if (typeof value === "string") return shouldDropStorageString(value) ? undefined : value
+  if (!value || typeof value !== "object") return value
+  if (seen.has(value)) return undefined
+  seen.add(value)
+
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeStorageValue(item, seen)).filter((item) => item !== undefined)
+  }
+
+  const sanitized: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(value)) {
+    if (heavyStorageKeys.has(normalizedStorageKey(key))) continue
+    const next = sanitizeStorageValue(item, seen)
+    if (next !== undefined) sanitized[key] = next
+  }
+  return sanitized
+}
+
+function sanitizeAnalysisForStorage(result: AnalysisResult): AnalysisResult {
+  const sanitized: AnalysisResult = {
+    ...result,
+    rawAnalysis: sanitizeStorageValue(result.rawAnalysis),
+  }
+  delete sanitized.imageDataUrl
+  return sanitized
+}
+
+function isStorageQuotaError(error: unknown) {
+  return error instanceof DOMException && (error.name === "QuotaExceededError" || error.name === "NS_ERROR_DOM_QUOTA_REACHED")
+}
+
+function saveStorageJson(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+    return true
+  } catch (error) {
+    if (isStorageQuotaError(error)) {
+      localStorage.removeItem(analysisImagesStorageKey)
+    }
+    return false
+  }
+}
+
 function averageScore(values: unknown[]) {
   const numbers = values.map((value) => Number(value)).filter(Number.isFinite)
   return numbers.length ? asNumber(numbers.reduce((sum, value) => sum + value, 0) / numbers.length) : 0
@@ -442,7 +507,10 @@ export function getHospitalApplications(): HospitalApplication[] {
 }
 
 export function saveHospitalApplication(application: HospitalApplication) {
-  localStorage.setItem(applicationStorageKey, JSON.stringify([application, ...getHospitalApplications()]))
+  const safeApplication = application.analysisSnapshot
+    ? { ...application, analysisSnapshot: sanitizeAnalysisForStorage(application.analysisSnapshot) }
+    : application
+  saveStorageJson(applicationStorageKey, [safeApplication, ...getHospitalApplications()])
   window.dispatchEvent(new CustomEvent("skinai:hospital-application-updated"))
 }
 
@@ -461,20 +529,12 @@ export function getLastAnalysisId(): string | null {
 }
 
 export function saveAnalysisImage(analysisId: string, imageDataUrl: string) {
-  try {
-    const all = JSON.parse(localStorage.getItem(analysisImagesStorageKey) || "{}")
-    all[analysisId] = imageDataUrl
-    localStorage.setItem(analysisImagesStorageKey, JSON.stringify(all))
-  } catch {}
+  localStorage.removeItem(analysisImagesStorageKey)
+  analysisImageCache.set(analysisId, imageDataUrl)
 }
 
 export function getAnalysisImage(analysisId: string): string | null {
-  try {
-    const all = JSON.parse(localStorage.getItem(analysisImagesStorageKey) || "{}")
-    return typeof all[analysisId] === "string" ? all[analysisId] : null
-  } catch {
-    return null
-  }
+  return analysisImageCache.get(analysisId) ?? null
 }
 
 export function getAnalysisNotes(analysisId: string): string {
@@ -490,21 +550,31 @@ export function saveAnalysisNotes(analysisId: string, notes: string) {
   try {
     const all = JSON.parse(localStorage.getItem(notesStorageKey) || "{}")
     all[analysisId] = notes
-    localStorage.setItem(notesStorageKey, JSON.stringify(all))
+    saveStorageJson(notesStorageKey, all)
   } catch {}
 }
 
 export function saveLastAnalysis(result: unknown, imageDataUrl?: string) {
   const normalized = normalizeAnalysisResponse(result)
   if (imageDataUrl) normalized.imageDataUrl = imageDataUrl
-  localStorage.setItem(analysisStorageKey, JSON.stringify(normalized))
+  localStorage.removeItem(analysisImagesStorageKey)
+  const sanitized = sanitizeAnalysisForStorage(normalized)
+  if (!saveStorageJson(analysisStorageKey, sanitized)) {
+    saveStorageJson(analysisStorageKey, { ...sanitized, rawAnalysis: undefined })
+  }
   window.dispatchEvent(new CustomEvent("skinai:analysis-updated"))
 }
 
 export function getLastAnalysis(): AnalysisResult | null {
   try {
     const value = localStorage.getItem(analysisStorageKey)
-    return value ? JSON.parse(value) : null
+    if (!value) return null
+    const parsed = JSON.parse(value) as AnalysisResult
+    const sanitized = sanitizeAnalysisForStorage(parsed)
+    if (parsed.imageDataUrl || value.length > largeStorageStringLength) {
+      saveStorageJson(analysisStorageKey, sanitized)
+    }
+    return sanitized
   } catch {
     return null
   }
@@ -513,6 +583,8 @@ export function getLastAnalysis(): AnalysisResult | null {
 export function clearLastAnalysis() {
   localStorage.removeItem(analysisStorageKey)
   localStorage.removeItem(lastAnalysisIdKey)
+  localStorage.removeItem(analysisImagesStorageKey)
+  analysisImageCache.clear()
   window.dispatchEvent(new CustomEvent("skinai:analysis-updated"))
 }
 

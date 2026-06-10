@@ -218,6 +218,23 @@ async function compressImage(dataUrl: string, maxSizeMb = 5): Promise<Blob> {
   return await new Promise<Blob>((resolve) => c.toBlob((b) => resolve(b!), "image/jpeg", 0.85))
 }
 
+async function createResultPreview(dataUrl: string): Promise<string> {
+  const img = new Image()
+  img.src = dataUrl
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve()
+    img.onerror = () => reject(new Error("captured image preview failed"))
+  })
+
+  const maxDimension = 720
+  const scale = Math.min(1, maxDimension / Math.max(img.width, img.height))
+  const preview = document.createElement("canvas")
+  preview.width = Math.max(1, Math.round(img.width * scale))
+  preview.height = Math.max(1, Math.round(img.height * scale))
+  preview.getContext("2d")?.drawImage(img, 0, 0, preview.width, preview.height)
+  return preview.toDataURL("image/jpeg", 0.82)
+}
+
 type UploadMode = "multipart" | "presigned"
 
 function preferredAnalysisUploadMode(): UploadMode {
@@ -257,6 +274,7 @@ async function analyze() {
   try {
     const totalStart = performance.now()
     const blob = await compressImage(imageDataUrl)
+    const resultImageDataUrl = await createResultPreview(imageDataUrl)
     const uploadMode = preferredAnalysisUploadMode()
     const timingsMs: Record<string, number> = { compress: elapsedSince(totalStart) }
     updateLoading("피부 분석 모델에 이미지를 전달하는 중입니다", 62)
@@ -303,7 +321,7 @@ async function analyze() {
     const analysisId = (data as Record<string, unknown>).analysisId || (data as Record<string, unknown>).id
     if (typeof analysisId === "string" && analysisId) {
       saveLastAnalysisId(analysisId)
-      saveAnalysisImage(analysisId, imageDataUrl)
+      saveAnalysisImage(analysisId, resultImageDataUrl)
     }
 
     updateLoading("AI 종합 분석과 PubMed 근거를 정리하는 중입니다", 96)
@@ -330,7 +348,7 @@ async function analyze() {
       // 요약 저장 실패는 분석 결과 진입을 막지 않습니다.
     }
 
-    saveLastAnalysis(data, imageDataUrl)
+    saveLastAnalysis(data, resultImageDataUrl)
     await completeLoading()
     router.push("/result")
   } catch (e) {

@@ -58,6 +58,7 @@ const lastAnalysisIdKey = "skinai:last-analysis-id"
 const analysisImagesStorageKey = "skinai:analysis-images"
 const notesStorageKey = "skinai:analysis-notes"
 const analysisImageCache = new Map<string, string>()
+let lastAnalysisCache: AnalysisResult | null = null
 
 const metricLabels: Record<string, { title: string; status: string; description: string; category: string }> = {
   hydration: { title: "수분", status: "관리 필요", description: "피부 수분 밸런스를 확인하세요", category: "피부 상태" },
@@ -274,49 +275,12 @@ function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.map(String).filter(Boolean) : []
 }
 
-const heavyStorageKeys = new Set([
-  "base64",
-  "capturedataurl",
-  "capturedimage",
-  "imagedata",
-  "imagedataurl",
-  "imagebase64",
-  "photodataurl",
-  "thumbnaildataurl",
-])
 const largeStorageStringLength = 100_000
-
-function normalizedStorageKey(key: string) {
-  return key.toLowerCase().replace(/[^a-z0-9]/g, "")
-}
-
-function shouldDropStorageString(value: string) {
-  return value.length > largeStorageStringLength || value.startsWith("data:image/")
-}
-
-function sanitizeStorageValue(value: unknown, seen = new WeakSet<object>()): unknown {
-  if (typeof value === "string") return shouldDropStorageString(value) ? undefined : value
-  if (!value || typeof value !== "object") return value
-  if (seen.has(value)) return undefined
-  seen.add(value)
-
-  if (Array.isArray(value)) {
-    return value.map((item) => sanitizeStorageValue(item, seen)).filter((item) => item !== undefined)
-  }
-
-  const sanitized: Record<string, unknown> = {}
-  for (const [key, item] of Object.entries(value)) {
-    if (heavyStorageKeys.has(normalizedStorageKey(key))) continue
-    const next = sanitizeStorageValue(item, seen)
-    if (next !== undefined) sanitized[key] = next
-  }
-  return sanitized
-}
 
 function sanitizeAnalysisForStorage(result: AnalysisResult): AnalysisResult {
   const sanitized: AnalysisResult = {
     ...result,
-    rawAnalysis: sanitizeStorageValue(result.rawAnalysis),
+    rawAnalysis: undefined,
   }
   delete sanitized.imageDataUrl
   return sanitized
@@ -329,6 +293,18 @@ function isStorageQuotaError(error: unknown) {
 function saveStorageJson(key: string, value: unknown) {
   try {
     localStorage.setItem(key, JSON.stringify(value))
+    return true
+  } catch (error) {
+    if (isStorageQuotaError(error)) {
+      localStorage.removeItem(analysisImagesStorageKey)
+    }
+    return false
+  }
+}
+
+function saveStorageString(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value)
     return true
   } catch (error) {
     if (isStorageQuotaError(error)) {
@@ -521,7 +497,7 @@ export function formatApplicationDate(value: string) {
 }
 
 export function saveLastAnalysisId(id: string) {
-  localStorage.setItem(lastAnalysisIdKey, id)
+  saveStorageString(lastAnalysisIdKey, id)
 }
 
 export function getLastAnalysisId(): string | null {
@@ -529,12 +505,23 @@ export function getLastAnalysisId(): string | null {
 }
 
 export function saveAnalysisImage(analysisId: string, imageDataUrl: string) {
-  localStorage.removeItem(analysisImagesStorageKey)
   analysisImageCache.set(analysisId, imageDataUrl)
+  saveStorageJson(analysisImagesStorageKey, { [analysisId]: imageDataUrl })
 }
 
 export function getAnalysisImage(analysisId: string): string | null {
-  return analysisImageCache.get(analysisId) ?? null
+  const cached = analysisImageCache.get(analysisId)
+  if (cached) return cached
+
+  try {
+    const stored = JSON.parse(localStorage.getItem(analysisImagesStorageKey) || "{}") as Record<string, unknown>
+    const imageDataUrl = stored[analysisId]
+    if (typeof imageDataUrl !== "string" || !imageDataUrl.startsWith("data:image/")) return null
+    analysisImageCache.set(analysisId, imageDataUrl)
+    return imageDataUrl
+  } catch {
+    return null
+  }
 }
 
 export function getAnalysisNotes(analysisId: string): string {
@@ -557,26 +544,31 @@ export function saveAnalysisNotes(analysisId: string, notes: string) {
 export function saveLastAnalysis(result: unknown, imageDataUrl?: string) {
   const normalized = normalizeAnalysisResponse(result)
   if (imageDataUrl) normalized.imageDataUrl = imageDataUrl
-  localStorage.removeItem(analysisImagesStorageKey)
   const sanitized = sanitizeAnalysisForStorage(normalized)
-  if (!saveStorageJson(analysisStorageKey, sanitized)) {
-    saveStorageJson(analysisStorageKey, { ...sanitized, rawAnalysis: undefined })
-  }
+  lastAnalysisCache = normalized
+  saveStorageJson(analysisStorageKey, sanitized)
   window.dispatchEvent(new CustomEvent("skinai:analysis-updated"))
 }
 
 export function getLastAnalysis(): AnalysisResult | null {
   try {
     const value = localStorage.getItem(analysisStorageKey)
-    if (!value) return null
+    if (!value) return lastAnalysisCache
     const parsed = JSON.parse(value) as AnalysisResult
     const sanitized = sanitizeAnalysisForStorage(parsed)
+    const analysisId = getLastAnalysisId()
+    const imageDataUrl =
+      parsed.imageDataUrl ||
+      (analysisId ? getAnalysisImage(analysisId) : null) ||
+      lastAnalysisCache?.imageDataUrl
+    const hydrated = imageDataUrl ? { ...sanitized, imageDataUrl } : sanitized
     if (parsed.imageDataUrl || value.length > largeStorageStringLength) {
       saveStorageJson(analysisStorageKey, sanitized)
     }
-    return sanitized
+    lastAnalysisCache = hydrated
+    return hydrated
   } catch {
-    return null
+    return lastAnalysisCache
   }
 }
 
@@ -585,6 +577,7 @@ export function clearLastAnalysis() {
   localStorage.removeItem(lastAnalysisIdKey)
   localStorage.removeItem(analysisImagesStorageKey)
   analysisImageCache.clear()
+  lastAnalysisCache = null
   window.dispatchEvent(new CustomEvent("skinai:analysis-updated"))
 }
 

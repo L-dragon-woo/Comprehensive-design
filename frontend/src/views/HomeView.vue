@@ -9,7 +9,7 @@ import PageContainer from "@/components/PageContainer.vue"
 import ScoreRing from "@/components/ScoreRing.vue"
 import { getCurrentUser, getMyAnalyses, getStoredFileUrl } from "@/lib/api"
 import { openPdfPreview } from "@/lib/pdf"
-import { formatApplicationDate, getHospitalApplications, getLastAnalysis, normalizeAnalysisResponse, type HospitalApplication } from "@/lib/skinai"
+import { formatApplicationDate, getAnalysisImage, getHospitalApplications, getLastAnalysis, normalizeAnalysisResponse, type HospitalApplication } from "@/lib/skinai"
 
 const applications = ref<HospitalApplication[]>([])
 const analysis = ref(getLastAnalysis())
@@ -19,33 +19,40 @@ const visibleApplications = computed(() => (showAllApplications.value ? applicat
 const hasMoreApplications = computed(() => applications.value.length > 1)
 
 async function viewApplicationPdf(application: HospitalApplication) {
+  const applicationAnalysis = application.analysisSnapshot || analysis.value
+  if (applicationAnalysis) {
+    openPdfPreview({
+      analysis: applicationAnalysis,
+      user: getCurrentUser(),
+      notes: application.submissionNote,
+      capturedImageDataUrl:
+        (application.analysisId ? getAnalysisImage(application.analysisId) : null) ||
+        applicationAnalysis.imageDataUrl,
+    })
+    return
+  }
+
+  const pendingWindow = window.open("", "_blank")
+  if (!pendingWindow) return
+
   if (application.pdfKey) {
-    const storedFile = await getStoredFileUrl(application.pdfKey)
-    if (storedFile.url) {
-      window.open(storedFile.url, "_blank", "noopener,noreferrer")
-      return
+    try {
+      const storedFile = await getStoredFileUrl(application.pdfKey)
+      if (storedFile.url) {
+        pendingWindow.location.href = storedFile.url
+        return
+      }
+    } catch {
+      // Fall through to the stored public URL when the signed URL lookup fails.
     }
   }
 
   if (application.pdfUrl) {
-    window.open(application.pdfUrl, "_blank", "noopener,noreferrer")
+    pendingWindow.location.href = application.pdfUrl
     return
   }
 
-  if (application.analysisSnapshot) {
-    openPdfPreview({
-      analysis: application.analysisSnapshot,
-      user: getCurrentUser(),
-      notes: application.submissionNote,
-      capturedImageDataUrl: application.analysisSnapshot.imageDataUrl,
-    })
-  } else if (analysis.value) {
-    openPdfPreview({
-      analysis: analysis.value,
-      user: getCurrentUser(),
-      capturedImageDataUrl: analysis.value.imageDataUrl,
-    })
-  }
+  pendingWindow.close()
 }
 
 function statusLabel(status: HospitalApplication["status"]) {

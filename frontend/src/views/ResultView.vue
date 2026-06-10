@@ -18,6 +18,10 @@ const loading = ref(false)
 const error = ref("")
 const analysisId = computed(() => (typeof route.params.id === "string" ? route.params.id : ""))
 const resolvedId = computed(() => analysisId.value || getLastAnalysisId() || "")
+const displayImageUrl = computed(() => {
+  const storedImage = resolvedId.value ? getAnalysisImage(resolvedId.value) : null
+  return storedImage || result.value?.imageDataUrl || result.value?.imageUrl || ""
+})
 
 const aiSummary = ref("")
 const aiSummaryLoading = ref(false)
@@ -80,7 +84,7 @@ function downloadPdf() {
     user: getCurrentUser(),
     notes: notes.value,
     aiSummary: aiSummary.value || result.value.aiSummary,
-    capturedImageDataUrl: result.value.imageDataUrl,
+    capturedImageDataUrl: displayImageUrl.value || undefined,
   })
 }
 
@@ -143,10 +147,17 @@ async function fetchAiSummary(analysis: unknown) {
 }
 
 onMounted(async () => {
+  const cached = getLastAnalysis()
   if (!analysisId.value) {
-    const cached = getLastAnalysis()
     // Re-normalize so updated metric extraction logic applies to cached data
-    result.value = cached?.rawAnalysis ? { ...normalizeAnalysisResponse(cached.rawAnalysis), imageDataUrl: cached.imageDataUrl, aiSummary: cached.aiSummary } : cached
+    result.value = cached?.rawAnalysis
+      ? {
+          ...normalizeAnalysisResponse(cached.rawAnalysis),
+          imageDataUrl: cached.imageDataUrl,
+          imageUrl: cached.imageUrl,
+          aiSummary: cached.aiSummary,
+        }
+      : cached
     loadNotes()
     if (result.value?.aiSummary) applyAiSummary(result.value.aiSummary)
     if (result.value?.rawAnalysis) fetchAiSummary(result.value.rawAnalysis)
@@ -156,9 +167,11 @@ onMounted(async () => {
   loading.value = true
   try {
     const saved = await getMyAnalysis(analysisId.value)
+    const normalized = normalizeAnalysisResponse(saved.analysis)
     result.value = {
-      ...normalizeAnalysisResponse(saved.analysis),
-      imageDataUrl: getAnalysisImage(analysisId.value) || undefined,
+      ...normalized,
+      imageDataUrl: getAnalysisImage(analysisId.value) || cached?.imageDataUrl || undefined,
+      imageUrl: normalized.imageUrl || cached?.imageUrl,
     }
     loadNotes()
     if (result.value.aiSummary) applyAiSummary(result.value.aiSummary)
@@ -193,18 +206,25 @@ onMounted(async () => {
     <template v-else>
       <section class="py-6">
         <div class="rounded-3xl border border-border bg-card p-6 shadow-sm">
-          <div class="mb-6 flex items-center justify-between gap-4">
-            <div class="min-w-0 flex-1">
+          <div class="mb-5">
+            <div class="min-w-0">
               <p class="mb-1 text-sm text-muted-foreground">{{ result.date || "오늘 분석" }}</p>
               <h2 class="mb-1 text-xl font-bold">{{ result.skinType || "피부 타입 분석" }}</h2>
               <p class="text-sm text-muted-foreground">AI 분석 결과를 기반으로 추천을 정리했습니다.</p>
             </div>
-            <img v-if="result.imageDataUrl" :src="result.imageDataUrl" alt="분석에 사용한 얼굴 사진" class="h-24 w-20 shrink-0 rounded-2xl object-cover ring-1 ring-border" />
-            <ScoreRing v-else :score="result.overallScore || 0" :size="100" :stroke-width="7" />
           </div>
-          <div v-if="result.imageDataUrl" class="mb-5 flex items-center justify-between rounded-2xl bg-secondary px-4 py-3">
-            <span class="text-sm font-medium text-muted-foreground">종합 점수</span>
-            <ScoreRing :score="result.overallScore || 0" :size="72" :stroke-width="6" />
+          <div class="mb-5 flex items-center justify-center gap-6 rounded-2xl bg-secondary p-4">
+            <div class="flex flex-col items-center gap-2">
+              <span class="text-xs font-semibold text-muted-foreground">종합 점수</span>
+              <ScoreRing :score="result.overallScore || 0" :size="96" :stroke-width="7" />
+            </div>
+            <div class="flex flex-col items-center gap-2">
+              <span class="text-xs font-semibold text-muted-foreground">분석 얼굴 사진</span>
+              <img v-if="displayImageUrl" :src="displayImageUrl" alt="분석에 사용한 얼굴 사진" class="h-28 w-24 rounded-2xl object-cover ring-1 ring-border" />
+              <div v-else class="flex h-28 w-24 items-center justify-center rounded-2xl border border-dashed border-border bg-card px-3 text-center text-xs text-muted-foreground">
+                얼굴 사진을 불러올 수 없습니다
+              </div>
+            </div>
           </div>
           <div class="flex flex-wrap gap-2">
             <span v-for="concern in result.concerns || []" :key="concern" class="rounded-full bg-accent px-3 py-1.5 text-xs font-medium">{{ concern }}</span>

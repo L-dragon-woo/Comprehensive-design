@@ -37,6 +37,7 @@ function formatAiSummary(value: string): string {
 function buildPrintHtml(options: PdfOptions): string {
   const { analysis, user, notes, aiSummary, capturedImageDataUrl } = options
   const effectiveAiSummary = aiSummary?.trim() || analysis.aiSummary?.trim() || ""
+  const effectiveImageUrl = capturedImageDataUrl || analysis.imageDataUrl || analysis.imageUrl || ""
   const date = analysis.date || new Intl.DateTimeFormat("ko-KR").format(new Date())
 
   const metricsRows = (analysis.metrics || [])
@@ -93,14 +94,6 @@ function buildPrintHtml(options: PdfOptions): string {
     </div>`
     : ""
 
-  const photoSection = capturedImageDataUrl
-    ? `
-    <div class="section photo-section">
-      <h2>분석 사진</h2>
-      <img src="${capturedImageDataUrl}" alt="분석 사진" class="analysis-photo" />
-    </div>`
-    : ""
-
   return `<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -112,9 +105,13 @@ function buildPrintHtml(options: PdfOptions): string {
   .header { text-align: center; border-bottom: 2px solid #7c3aed; padding-bottom: 12px; margin-bottom: 20px; }
   .header h1 { font-size: 20pt; color: #7c3aed; margin-bottom: 4px; }
   .header .subtitle { color: #666; font-size: 9pt; }
-  .score-box { display: flex; align-items: center; gap: 20px; background: #f5f3ff; border-radius: 12px; padding: 16px 20px; margin-bottom: 16px; }
+  .score-box { display: flex; align-items: stretch; justify-content: space-between; gap: 24px; background: #f5f3ff; border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; break-inside: avoid; page-break-inside: avoid; }
+  .score-summary { display: flex; align-items: center; gap: 20px; min-width: 0; flex: 1; }
   .score-circle { width: 80px; height: 80px; border-radius: 50%; background: conic-gradient(#7c3aed ${(analysis.overallScore || 0) * 3.6}deg, #e5e7eb 0deg); display: flex; align-items: center; justify-content: center; position: relative; flex-shrink: 0; }
   .score-inner { width: 60px; height: 60px; border-radius: 50%; background: #f5f3ff; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .score-photo-panel { width: 220px; flex-shrink: 0; }
+  .score-photo-label { margin-bottom: 6px; color: #6d28d9; font-size: 8pt; font-weight: 700; text-align: center; }
+  .score-photo { display: block; width: 220px; height: 280px; object-fit: cover; object-position: center; border-radius: 12px; border: 1px solid #c4b5fd; background: #fff; }
   .score-value { font-size: 16pt; font-weight: 700; color: #7c3aed; line-height: 1; }
   .score-label { font-size: 7pt; color: #666; }
   .score-info h2 { font-size: 14pt; margin-bottom: 4px; }
@@ -138,7 +135,6 @@ function buildPrintHtml(options: PdfOptions): string {
   .treatment-note { color: #6b7280; font-size: 8.5pt; font-style: italic; }
   .ai-summary-box { background: #f8fafc; border: 1px solid #dbeafe; border-radius: 8px; padding: 12px; font-size: 9.5pt; line-height: 1.65; color: #1f2937; }
   .notes-box { background: #fefce8; border: 1px solid #fde68a; border-radius: 8px; padding: 12px; font-size: 10pt; line-height: 1.6; white-space: pre-wrap; }
-  .analysis-photo { max-width: 180px; border-radius: 12px; border: 1px solid #e5e7eb; }
   .footer { text-align: center; font-size: 8pt; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 10px; margin-top: 24px; }
   @media print { body { padding: 0; } }
 </style>
@@ -150,19 +146,22 @@ function buildPrintHtml(options: PdfOptions): string {
   </div>
 
   <div class="score-box">
-    <div class="score-circle">
-      <div class="score-inner">
-        <div class="score-value">${analysis.overallScore || 0}</div>
-        <div class="score-label">점</div>
+    <div class="score-summary">
+      <div class="score-circle">
+        <div class="score-inner">
+          <div class="score-value">${analysis.overallScore || 0}</div>
+          <div class="score-label">점</div>
+        </div>
+      </div>
+      <div class="score-info">
+        <h2>${analysis.skinType || "피부 타입 분석"}</h2>
+        <p>AI 분석 결과를 기반으로 종합 평가하였습니다.</p>
+        <div class="concerns">
+          ${(analysis.concerns || []).map((c) => `<span class="concern-tag">${c}</span>`).join("")}
+        </div>
       </div>
     </div>
-    <div class="score-info">
-      <h2>${analysis.skinType || "피부 타입 분석"}</h2>
-      <p>AI 분석 결과를 기반으로 종합 평가하였습니다.</p>
-      <div class="concerns">
-        ${(analysis.concerns || []).map((c) => `<span class="concern-tag">${c}</span>`).join("")}
-      </div>
-    </div>
+    ${effectiveImageUrl ? `<div class="score-photo-panel"><div class="score-photo-label">분석 얼굴 사진</div><img src="${escapeHtml(effectiveImageUrl)}" alt="분석 얼굴 사진" class="score-photo" /></div>` : ""}
   </div>
 
   ${userSection}
@@ -206,7 +205,6 @@ function buildPrintHtml(options: PdfOptions): string {
 
   ${aiSummarySection}
   ${notesSection}
-  ${photoSection}
 
   <div class="footer">
     본 결과지는 AI 분석으로 생성되었으며 의료 진단을 대체하지 않습니다. 실제 시술 여부는 전문가 상담을 통해 결정하세요.
@@ -221,7 +219,24 @@ export function openPdfPreview(options: PdfOptions): void {
   if (!win) return
   win.document.write(html)
   win.document.close()
-  win.onload = () => {
+  win.onload = async () => {
+    const images = Array.from(win.document.images)
+    await Promise.race([
+      Promise.all(
+        images.map(
+          (image) =>
+            new Promise<void>((resolve) => {
+              if (image.complete) {
+                resolve()
+                return
+              }
+              image.addEventListener("load", () => resolve(), { once: true })
+              image.addEventListener("error", () => resolve(), { once: true })
+            }),
+        ),
+      ),
+      new Promise<void>((resolve) => window.setTimeout(resolve, 5000)),
+    ])
     win.focus()
     win.print()
   }

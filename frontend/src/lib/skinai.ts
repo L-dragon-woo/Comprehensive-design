@@ -54,6 +54,7 @@ export type AnalysisResult = {
 
 const legacyApplicationStorageKey = "skinai:hospital-applications"
 const localDataOwnerKey = "skinai:local-data-owner"
+const userStorageKey = "skinai:user"
 const analysisStorageKey = "skinai:last-analysis"
 const lastAnalysisIdKey = "skinai:last-analysis-id"
 const analysisImagesStorageKey = "skinai:analysis-images"
@@ -62,7 +63,18 @@ const analysisImageCache = new Map<string, string>()
 let lastAnalysisCache: AnalysisResult | null = null
 
 function applicationStorageKey() {
-  const owner = localStorage.getItem(localDataOwnerKey)
+  let owner = localStorage.getItem(localDataOwnerKey)
+  if (!owner) {
+    try {
+      const user = JSON.parse(localStorage.getItem(userStorageKey) || "null") as { username?: unknown } | null
+      if (typeof user?.username === "string" && user.username) {
+        owner = user.username
+        localStorage.setItem(localDataOwnerKey, owner)
+      }
+    } catch {
+      owner = null
+    }
+  }
   return owner ? `${legacyApplicationStorageKey}:${encodeURIComponent(owner)}` : null
 }
 

@@ -1,0 +1,52 @@
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in the root .env file}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/demo/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - frontend
+      - backend
+
+  redis:
+    restart: unless-stopped
+
+  mongo:
+    restart: unless-stopped
+
+  mariadb:
+    restart: unless-stopped
+
+  ai:
+    restart: unless-stopped
+    environment:
+      AI_UVICORN_WORKERS: ${AI_UVICORN_WORKERS:-1}
+    ports: !reset []
+
+  backend:
+    restart: unless-stopped
+    ports: !reset []
+
+  frontend:
+    restart: unless-stopped
+    ports: !reset []
+
+  prometheus:
+    restart: unless-stopped
+    ports: !reset []
+
+  grafana:
+    restart: unless-stopped
+    ports: !reset []
+
+volumes:
+  caddy-data:
+  caddy-config:

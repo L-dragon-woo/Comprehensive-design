@@ -581,6 +581,13 @@ export function clearLastAnalysis() {
   window.dispatchEvent(new CustomEvent("skinai:analysis-updated"))
 }
 
+export function clearUserLocalData() {
+  localStorage.removeItem(applicationStorageKey)
+  localStorage.removeItem(notesStorageKey)
+  clearLastAnalysis()
+  window.dispatchEvent(new CustomEvent("skinai:hospital-application-updated"))
+}
+
 export function getHistoryData(): AnalysisRecord[] {
   const result = getLastAnalysis()
   return result?.overallScore

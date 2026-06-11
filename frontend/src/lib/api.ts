@@ -1,3 +1,5 @@
+import { clearUserLocalData } from "@/lib/skinai"
+
 export type UserProfile = {
   username: string
   displayName: string
@@ -18,6 +20,7 @@ export type PresignedUpload = { key: string; url: string; method: "PUT"; content
 const accessKey = "skinai:access-token"
 const refreshKey = "skinai:refresh-token"
 const userKey = "skinai:user"
+const localDataOwnerKey = "skinai:local-data-owner"
 
 export function getAccessToken() {
   return localStorage.getItem(accessKey)
@@ -37,16 +40,21 @@ export function isAuthenticated() {
 }
 
 export function saveAuth(auth: AuthResponse) {
+  const localDataOwner = localStorage.getItem(localDataOwnerKey)
+  if (localDataOwner !== auth.user.username) clearUserLocalData()
   localStorage.setItem(accessKey, auth.accessToken)
   localStorage.setItem(refreshKey, auth.refreshToken)
   localStorage.setItem(userKey, JSON.stringify(auth.user))
+  localStorage.setItem(localDataOwnerKey, auth.user.username)
   window.dispatchEvent(new CustomEvent("skinai:auth-updated"))
 }
 
 export function clearAuth() {
+  clearUserLocalData()
   localStorage.removeItem(accessKey)
   localStorage.removeItem(refreshKey)
   localStorage.removeItem(userKey)
+  localStorage.removeItem(localDataOwnerKey)
   window.dispatchEvent(new CustomEvent("skinai:auth-updated"))
 }
 

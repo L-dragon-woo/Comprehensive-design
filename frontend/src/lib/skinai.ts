@@ -52,13 +52,19 @@ export type AnalysisResult = {
   recommendations?: string[]
 }
 
-const applicationStorageKey = "skinai:hospital-applications"
+const legacyApplicationStorageKey = "skinai:hospital-applications"
+const localDataOwnerKey = "skinai:local-data-owner"
 const analysisStorageKey = "skinai:last-analysis"
 const lastAnalysisIdKey = "skinai:last-analysis-id"
 const analysisImagesStorageKey = "skinai:analysis-images"
 const notesStorageKey = "skinai:analysis-notes"
 const analysisImageCache = new Map<string, string>()
 let lastAnalysisCache: AnalysisResult | null = null
+
+function applicationStorageKey() {
+  const owner = localStorage.getItem(localDataOwnerKey)
+  return owner ? `${legacyApplicationStorageKey}:${encodeURIComponent(owner)}` : null
+}
 
 const metricLabels: Record<string, { title: string; status: string; description: string; category: string }> = {
   hydration: { title: "수분", status: "관리 필요", description: "피부 수분 밸런스를 확인하세요", category: "피부 상태" },
@@ -475,18 +481,22 @@ export function normalizeAnalysisResponse(payload: unknown): AnalysisResult {
 }
 
 export function getHospitalApplications(): HospitalApplication[] {
+  const key = applicationStorageKey()
+  if (!key) return []
   try {
-    return JSON.parse(localStorage.getItem(applicationStorageKey) || "[]")
+    return JSON.parse(localStorage.getItem(key) || "[]")
   } catch {
     return []
   }
 }
 
 export function saveHospitalApplication(application: HospitalApplication) {
+  const key = applicationStorageKey()
+  if (!key) return
   const safeApplication = application.analysisSnapshot
     ? { ...application, analysisSnapshot: sanitizeAnalysisForStorage(application.analysisSnapshot) }
     : application
-  saveStorageJson(applicationStorageKey, [safeApplication, ...getHospitalApplications()])
+  saveStorageJson(key, [safeApplication, ...getHospitalApplications()])
   window.dispatchEvent(new CustomEvent("skinai:hospital-application-updated"))
 }
 
@@ -582,7 +592,9 @@ export function clearLastAnalysis() {
 }
 
 export function clearUserLocalData() {
-  localStorage.removeItem(applicationStorageKey)
+  const key = applicationStorageKey()
+  if (key) localStorage.removeItem(key)
+  localStorage.removeItem(legacyApplicationStorageKey)
   localStorage.removeItem(notesStorageKey)
   clearLastAnalysis()
   window.dispatchEvent(new CustomEvent("skinai:hospital-application-updated"))

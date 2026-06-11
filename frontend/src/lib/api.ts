@@ -1,4 +1,4 @@
-import { clearUserLocalData } from "@/lib/skinai"
+import { clearTransientUserLocalData } from "@/lib/skinai"
 
 export type UserProfile = {
   username: string
@@ -41,7 +41,7 @@ export function isAuthenticated() {
 
 export function saveAuth(auth: AuthResponse) {
   const localDataOwner = localStorage.getItem(localDataOwnerKey)
-  if (localDataOwner !== auth.user.username) clearUserLocalData()
+  if (localDataOwner !== auth.user.username) clearTransientUserLocalData()
   localStorage.setItem(accessKey, auth.accessToken)
   localStorage.setItem(refreshKey, auth.refreshToken)
   localStorage.setItem(userKey, JSON.stringify(auth.user))
@@ -50,7 +50,7 @@ export function saveAuth(auth: AuthResponse) {
 }
 
 export function clearAuth() {
-  clearUserLocalData()
+  clearTransientUserLocalData()
   localStorage.removeItem(accessKey)
   localStorage.removeItem(refreshKey)
   localStorage.removeItem(userKey)

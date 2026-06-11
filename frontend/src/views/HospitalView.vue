@@ -213,9 +213,7 @@ async function submitReport() {
     return
   }
 
-  error.value = ""
-  submittedHospitalName.value = selectedHospital.value.name
-  saveHospitalApplication({
+  const saved = saveHospitalApplication({
     id: Date.now().toString(),
     hospitalName: selectedHospital.value.name,
     submittedAt: new Date().toISOString(),
@@ -228,6 +226,14 @@ async function submitReport() {
     pdfKey,
     reportStorageStatus,
   })
+  if (!saved) {
+    error.value = "병원 신청 내역을 브라우저에 저장하지 못했습니다. 저장 공간을 확인한 뒤 다시 시도해 주세요."
+    submittingReport.value = false
+    return
+  }
+
+  error.value = ""
+  submittedHospitalName.value = selectedHospital.value.name
   submittingReport.value = false
   closeSubmitModal()
 }

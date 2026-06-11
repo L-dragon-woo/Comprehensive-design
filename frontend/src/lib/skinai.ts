@@ -72,7 +72,7 @@ function applicationStorageKey() {
         localStorage.setItem(localDataOwnerKey, owner)
       }
     } catch {
-      owner = null
+      return null
     }
   }
   return owner ? `${legacyApplicationStorageKey}:${encodeURIComponent(owner)}` : null
@@ -504,12 +504,13 @@ export function getHospitalApplications(): HospitalApplication[] {
 
 export function saveHospitalApplication(application: HospitalApplication) {
   const key = applicationStorageKey()
-  if (!key) return
+  if (!key) return false
   const safeApplication = application.analysisSnapshot
     ? { ...application, analysisSnapshot: sanitizeAnalysisForStorage(application.analysisSnapshot) }
     : application
-  saveStorageJson(key, [safeApplication, ...getHospitalApplications()])
+  if (!saveStorageJson(key, [safeApplication, ...getHospitalApplications()])) return false
   window.dispatchEvent(new CustomEvent("skinai:hospital-application-updated"))
+  return true
 }
 
 export function formatApplicationDate(value: string) {
@@ -603,9 +604,7 @@ export function clearLastAnalysis() {
   window.dispatchEvent(new CustomEvent("skinai:analysis-updated"))
 }
 
-export function clearUserLocalData() {
-  const key = applicationStorageKey()
-  if (key) localStorage.removeItem(key)
+export function clearTransientUserLocalData() {
   localStorage.removeItem(legacyApplicationStorageKey)
   localStorage.removeItem(notesStorageKey)
   clearLastAnalysis()

@@ -4,6 +4,7 @@ import java.util.Map;
 
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -11,8 +12,17 @@ import org.springframework.web.reactive.function.client.WebClientRequestExceptio
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    private final ObjectMapper objectMapper;
+
+    public ApiExceptionHandler(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
+
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<Map<String, Object>> handleResponseStatusException(ResponseStatusException e) {
         String message = e.getReason() == null || e.getReason().isBlank()
@@ -50,15 +60,32 @@ public class ApiExceptionHandler {
     @ExceptionHandler(WebClientResponseException.class)
     public ResponseEntity<Map<String, Object>> handleWebClientResponseException(WebClientResponseException e) {
         String responseBody = e.getResponseBodyAsString();
-        String message = responseBody == null || responseBody.isBlank()
-                ? "AI service request failed"
-                : responseBody;
+        String message = extractMessage(responseBody);
+        HttpStatusCode status = switch (e.getStatusCode().value()) {
+            case 429, 503 -> e.getStatusCode();
+            default -> HttpStatus.BAD_GATEWAY;
+        };
 
         return ResponseEntity
-                .status(HttpStatus.BAD_GATEWAY)
+                .status(status)
                 .body(Map.of(
-                        "status", HttpStatus.BAD_GATEWAY.value(),
+                        "status", status.value(),
                         "message", message
                 ));
+    }
+
+    private String extractMessage(String responseBody) {
+        if (responseBody == null || responseBody.isBlank()) {
+            return "AI service request failed";
+        }
+        try {
+            JsonNode detail = objectMapper.readTree(responseBody).get("detail");
+            if (detail != null && detail.isTextual()) {
+                return detail.asText();
+            }
+        } catch (Exception ignored) {
+            // Return the upstream body when it is not JSON.
+        }
+        return responseBody;
     }
 }

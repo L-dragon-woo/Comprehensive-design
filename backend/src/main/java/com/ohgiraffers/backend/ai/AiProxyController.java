@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
@@ -28,18 +29,21 @@ import com.ohgiraffers.backend.storage.S3StorageService;
 public class AiProxyController {
 
     private final WebClient aiClient;
+    private final WebClient aiAnalysisClient;
     private final ChatHistoryService chatHistoryService;
     private final AnalysisResultService analysisResultService;
     private final S3StorageService s3StorageService;
 
     public AiProxyController(
             WebClient.Builder builder,
+            @Qualifier("aiAnalysisClient") WebClient aiAnalysisClient,
             AiClientProperties properties,
             ChatHistoryService chatHistoryService,
             AnalysisResultService analysisResultService,
             S3StorageService s3StorageService
     ) {
         this.aiClient = builder.baseUrl(properties.baseUrl()).build();
+        this.aiAnalysisClient = aiAnalysisClient;
         this.chatHistoryService = chatHistoryService;
         this.analysisResultService = analysisResultService;
         this.s3StorageService = s3StorageService;
@@ -126,7 +130,7 @@ public class AiProxyController {
                 .contentType(MediaType.parseMediaType(image.getContentType() == null ? "image/jpeg" : image.getContentType()));
         bodyBuilder.part("gender", gender);
 
-        Map<String, Object> response = aiClient.post()
+        Map<String, Object> response = aiAnalysisClient.post()
                 .uri("/api/analyze")
                 .contentType(MediaType.MULTIPART_FORM_DATA)
                 .body(BodyInserters.fromMultipartData(bodyBuilder.build()))
@@ -171,7 +175,7 @@ public class AiProxyController {
                 .contentType(MediaType.parseMediaType(image.contentType()));
         bodyBuilder.part("gender", request.gender() == null || request.gender().isBlank() ? "female" : request.gender());
 
-        Map<String, Object> response = aiClient.post()
+        Map<String, Object> response = aiAnalysisClient.post()
                 .uri("/api/analyze")
                 .contentType(MediaType.MULTIPART_FORM_DATA)
                 .body(BodyInserters.fromMultipartData(bodyBuilder.build()))

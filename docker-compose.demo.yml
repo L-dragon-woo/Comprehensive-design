@@ -29,10 +29,14 @@ services:
     restart: unless-stopped
     environment:
       AI_UVICORN_WORKERS: ${AI_UVICORN_WORKERS:-1}
+      AI_INFERENCE_QUEUE_MAX_WAITING: ${AI_INFERENCE_QUEUE_MAX_WAITING:-50}
+      AI_INFERENCE_QUEUE_WAIT_TIMEOUT_SECONDS: ${AI_INFERENCE_QUEUE_WAIT_TIMEOUT_SECONDS:-1800}
     ports: !reset []
 
   backend:
     restart: unless-stopped
+    environment:
+      AI_REQUEST_TIMEOUT_SECONDS: ${AI_REQUEST_TIMEOUT_SECONDS:-1900}
     ports: !reset []
 
   frontend:

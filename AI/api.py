@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
@@ -9,12 +10,13 @@ import sys
 import threading
 import time
 import uuid
+from collections import deque
 from pathlib import Path
 from typing import Any
 
 import yaml
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, Request, Response, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 from pydantic import BaseModel
@@ -27,7 +29,6 @@ UPLOAD_DIR = ROOT / "uploads"
 LAST_ANALYSIS_PATH = ROOT / "analysis-result.json"
 _PIPELINE_CACHE: dict[str, Any] = {}
 _PIPELINE_CACHE_LOCK = threading.Lock()
-_PIPELINE_PREDICT_LOCK = threading.Lock()
 _PIPELINE_READY = False
 _PIPELINE_PRELOAD_ERROR: str | None = None
 
@@ -68,6 +69,91 @@ INFERENCE_DURATION = Histogram(
 GPU_UTILIZATION = Gauge(
     "ai_gpu_utilization_percent",
     "GPU utilization percentage reported by nvidia-smi. Zero when no GPU is available.",
+)
+INFERENCE_QUEUE_WAITING = Gauge(
+    "ai_inference_queue_waiting",
+    "Number of image inference requests waiting in the FIFO queue.",
+)
+INFERENCE_QUEUE_ACTIVE = Gauge(
+    "ai_inference_queue_active",
+    "Whether an image inference request is currently running.",
+)
+INFERENCE_QUEUE_WAIT_DURATION = Histogram(
+    "ai_inference_queue_wait_duration_seconds",
+    "Time spent waiting for an image inference slot.",
+)
+
+
+class InferenceQueue:
+    def __init__(self, max_waiting: int, wait_timeout_seconds: int):
+        self.max_waiting = max_waiting
+        self.wait_timeout_seconds = wait_timeout_seconds
+        self._condition = asyncio.Condition()
+        self._waiting: deque[str] = deque()
+        self._active = False
+
+    async def run(self, operation):
+        ticket = uuid.uuid4().hex
+        wait_started = time.perf_counter()
+
+        async with self._condition:
+            if len(self._waiting) >= self.max_waiting:
+                INFERENCE_COUNT.labels("queue_full").inc()
+                INFERENCE_QUEUE_WAIT_DURATION.observe(time.perf_counter() - wait_started)
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"AI analysis queue is full. Try again shortly (max waiting: {self.max_waiting}).",
+                )
+
+            self._waiting.append(ticket)
+            INFERENCE_QUEUE_WAITING.set(len(self._waiting))
+
+            while self._active or self._waiting[0] != ticket:
+                remaining = self.wait_timeout_seconds - (time.perf_counter() - wait_started)
+                if remaining <= 0:
+                    self._raise_wait_timeout(ticket, wait_started)
+                try:
+                    await asyncio.wait_for(self._condition.wait(), timeout=remaining)
+                except TimeoutError:
+                    self._raise_wait_timeout(ticket, wait_started)
+                except asyncio.CancelledError:
+                    self._remove_waiting_ticket(ticket)
+                    INFERENCE_QUEUE_WAIT_DURATION.observe(time.perf_counter() - wait_started)
+                    raise
+
+            self._waiting.popleft()
+            self._active = True
+            INFERENCE_QUEUE_WAITING.set(len(self._waiting))
+            INFERENCE_QUEUE_ACTIVE.set(1)
+
+        INFERENCE_QUEUE_WAIT_DURATION.observe(time.perf_counter() - wait_started)
+        worker_task = asyncio.create_task(run_in_threadpool(operation))
+        try:
+            return await asyncio.shield(worker_task)
+        except asyncio.CancelledError:
+            await worker_task
+            raise
+        finally:
+            async with self._condition:
+                self._active = False
+                INFERENCE_QUEUE_ACTIVE.set(0)
+                self._condition.notify_all()
+
+    def _raise_wait_timeout(self, ticket: str, wait_started: float) -> None:
+        self._remove_waiting_ticket(ticket)
+        INFERENCE_COUNT.labels("queue_timeout").inc()
+        INFERENCE_QUEUE_WAIT_DURATION.observe(time.perf_counter() - wait_started)
+        raise HTTPException(status_code=503, detail="AI analysis queue wait timed out. Try again shortly.")
+
+    def _remove_waiting_ticket(self, ticket: str) -> None:
+        self._waiting.remove(ticket)
+        INFERENCE_QUEUE_WAITING.set(len(self._waiting))
+        self._condition.notify_all()
+
+
+INFERENCE_QUEUE = InferenceQueue(
+    max_waiting=max(1, int(os.getenv("AI_INFERENCE_QUEUE_MAX_WAITING", "50"))),
+    wait_timeout_seconds=max(1, int(os.getenv("AI_INFERENCE_QUEUE_WAIT_TIMEOUT_SECONDS", "1800"))),
 )
 
 
@@ -504,8 +590,7 @@ def _get_skin_pipeline(gender: str):
 
 def _predict_skin_pipeline(gender: str, image_path: str) -> Any:
     pipe = _get_skin_pipeline(gender)
-    with _PIPELINE_PREDICT_LOCK:
-        return pipe.predict_single(image_path)
+    return pipe.predict_single(image_path)
 
 
 def _truthy_env(name: str, default: str = "true") -> bool:
@@ -807,7 +892,7 @@ async def analyze(
             target.write(chunk)
 
     try:
-        result = await run_in_threadpool(_predict_skin_pipeline, gender, str(image_path))
+        result = await INFERENCE_QUEUE.run(lambda: _predict_skin_pipeline(gender, str(image_path)))
 
         if result is None:
             INFERENCE_COUNT.labels("face_not_detected").inc()
@@ -829,6 +914,9 @@ async def analyze(
             json.dump(response, file, ensure_ascii=False, indent=2)
         return response
 
+    except HTTPException:
+        INFERENCE_DURATION.observe(time.perf_counter() - inference_start)
+        raise
     except Exception as exc:
         print(f"[ai-analyze] pipeline error: {type(exc).__name__}: {exc}", file=sys.stderr)
         INFERENCE_COUNT.labels("fallback").inc()
